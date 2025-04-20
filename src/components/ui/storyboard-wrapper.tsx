@@ -1,14 +1,16 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Spotlight } from "./spotlight";
 
 interface StoryboardWrapperProps {
   children: React.ReactNode;
   title?: string;
   description?: string;
   className?: string;
-  variant?: "default" | "gradient" | "subtle";
+  variant?: "default" | "gradient" | "subtle" | "glass";
   showAnimation?: boolean;
+  showSpotlight?: boolean;
 }
 
 const StoryboardWrapper = ({
@@ -18,11 +20,13 @@ const StoryboardWrapper = ({
   className = "",
   variant = "default",
   showAnimation = true,
+  showSpotlight = true,
 }: StoryboardWrapperProps) => {
   const variants = {
     default: "bg-background",
     gradient: "bg-gradient-to-br from-background to-muted",
     subtle: "bg-muted/30",
+    glass: "bg-background/80 backdrop-blur-sm",
   };
 
   const containerVariants = {
@@ -69,10 +73,14 @@ const StoryboardWrapper = ({
         </HeaderWrapper>
       )}
       <ContentWrapper
-        className="border rounded-lg p-6 bg-white shadow-sm"
+        className={cn(
+          "border rounded-lg p-6 bg-white shadow-sm relative overflow-hidden",
+          variant === "glass" && "bg-white/80 backdrop-blur-sm border-white/20",
+        )}
         variants={showAnimation ? itemVariants : undefined}
       >
-        {children}
+        {showSpotlight && <Spotlight />}
+        <div className="relative z-10">{children}</div>
       </ContentWrapper>
     </Wrapper>
   );

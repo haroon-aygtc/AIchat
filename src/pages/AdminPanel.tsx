@@ -19,9 +19,15 @@ import {
   BarChart3,
   HelpCircle,
   LogOut,
+  Clock,
+  Shield,
 } from "lucide-react";
 import ConfigurationPanel from "@/components/admin/ConfigurationPanel";
 import KnowledgeBaseManager from "@/components/admin/KnowledgeBaseManager";
+import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
+import UserManagement from "@/components/admin/UserManagement";
+import SessionLogs from "@/components/admin/SessionLogs";
+import AccessControl from "@/components/admin/AccessControl";
 
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState("configuration");
@@ -263,65 +269,9 @@ const AdminPanel = () => {
             </Card>
           )}
 
-          {activeTab === "analytics" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Analytics</CardTitle>
-                <CardDescription>
-                  View usage statistics and performance metrics for your chat
-                  system.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">1,234</div>
-                      <p className="text-muted-foreground">
-                        Total Conversations
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">5,678</div>
-                      <p className="text-muted-foreground">Total Messages</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">89%</div>
-                      <p className="text-muted-foreground">Satisfaction Rate</p>
-                    </CardContent>
-                  </Card>
-                </div>
-                <div className="aspect-video bg-muted rounded-md flex items-center justify-center">
-                  <p className="text-muted-foreground">Analytics Charts</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === "analytics" && <AnalyticsDashboard />}
 
-          {activeTab === "users" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>
-                  Manage users and their permissions for your chat system.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="p-8 flex flex-col items-center justify-center text-center">
-                  <Users className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No users yet</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Add users to your chat system to get started.
-                  </p>
-                  <Button>Add User</Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === "users" && <UserManagement />}
         </main>
       </div>
     </div>

@@ -19,6 +19,8 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import ResponseFormatter from "./ResponseFormatter";
+import FollowUpQuestionGenerator from "./FollowUpQuestionGenerator";
 
 interface Message {
   id: string;
@@ -60,6 +62,9 @@ const ChatWidget = ({
     top: 0,
     bottom: 0,
   });
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  const [currentTopic, setCurrentTopic] = useState("general inquiry");
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -147,6 +152,32 @@ const ChatWidget = ({
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+
+      // Show follow-up questions after AI response
+      // In a real implementation, you would analyze the message content
+      // to determine the appropriate topic for follow-up questions
+      const topicMap: Record<string, string> = {
+        password: "account",
+        pricing: "pricing",
+        cost: "pricing",
+        product: "product information",
+        technical: "technical support",
+        error: "technical support",
+        issue: "technical support",
+      };
+
+      // Simple topic detection based on keywords
+      const lowerContent = inputValue.toLowerCase();
+      let detectedTopic = "general inquiry";
+
+      Object.entries(topicMap).forEach(([keyword, topic]) => {
+        if (lowerContent.includes(keyword)) {
+          detectedTopic = topic;
+        }
+      });
+
+      setCurrentTopic(detectedTopic);
+      setShowFollowUp(true);
     } catch (error) {
       console.error("Error sending message:", error);
 
@@ -168,6 +199,13 @@ const ChatWidget = ({
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleFollowUpQuestion = (question: string) => {
+    setInputValue(question);
+    setShowFollowUp(false);
+    // Optional: auto-send the follow-up question
+    // handleSendMessage();
   };
 
   const getPositionStyles = () => {
@@ -284,15 +322,41 @@ const ChatWidget = ({
                                 : "bg-muted"
                             }`}
                           >
-                            <p className="text-sm whitespace-pre-wrap break-words">
-                              {message.content}
-                            </p>
+                            {message.sender === "user" ? (
+                              <p className="text-sm whitespace-pre-wrap break-words">
+                                {message.content}
+                              </p>
+                            ) : (
+                              <ResponseFormatter
+                                response={message.content}
+                                format="structured"
+                                includeTitle={false}
+                                includeIntro={false}
+                                includeContentBlocks={true}
+                                includeFAQ={false}
+                                includeActions={false}
+                                includeDisclaimer={false}
+                                className="text-sm whitespace-pre-wrap break-words"
+                              />
+                            )}
                             <span className="text-xs opacity-70 block text-right mt-1">
                               {formatTime(message.timestamp)}
                             </span>
                           </div>
                         </div>
                       ))}
+
+                      {showFollowUp &&
+                        messages.length > 0 &&
+                        messages[messages.length - 1].sender === "ai" && (
+                          <div className="mt-6 mb-2">
+                            <FollowUpQuestionGenerator
+                              currentTopic={currentTopic}
+                              onSelectQuestion={handleFollowUpQuestion}
+                            />
+                          </div>
+                        )}
+
                       <div ref={messagesEndRef} />
                     </ScrollArea>
                   </CardContent>

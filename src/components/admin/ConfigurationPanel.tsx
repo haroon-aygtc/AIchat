@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
@@ -6,6 +6,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,8 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Save,
   Plus,
@@ -29,73 +32,155 @@ import {
   MessageSquare,
   Palette,
   FileText,
+  Trash2,
+  Edit,
+  Copy,
+  Sparkles,
+  Code,
+  ExternalLink,
+  Key,
+  AlertCircle,
+  Check,
+  Search,
+  Play,
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Link,
+  X,
 } from "lucide-react";
+import { useConfig } from "@/context/ConfigContext";
+import PromptTemplateService, { PromptTemplate } from "@/services/promptTemplateService";
+import ChatWidget from "@/components/chat/ChatWidget";
 
 interface ConfigurationPanelProps {
   onSave?: (config: any) => void;
 }
 
 const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
+  const { toast } = useToast();
+  const { config, updateConfig, updateWidgetAppearance, updateAIModelConfig, updateKnowledgeBaseConfig, updateResponseFormattingConfig } = useConfig();
   const [activeTab, setActiveTab] = useState("knowledge-base");
-
-  // Mock data for demonstration purposes
-  const [knowledgeBaseConfig, setKnowledgeBaseConfig] = useState({
-    enableKnowledgeBase: true,
-    autoInjectRelevantContent: true,
-    citeSources: true,
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
+  const [showWidgetPreview, setShowWidgetPreview] = useState(false);
+  const [apiKeys, setApiKeys] = useState({
+    gemini: "",
+    huggingface: "",
   });
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<PromptTemplate | null>(null);
 
-  const [promptTemplates, setPromptTemplates] = useState([
-    {
-      id: "1",
-      name: "General Inquiry",
-      template:
-        "Answer the following question: {{user_query}}. Be concise and helpful.",
-    },
-    {
-      id: "2",
-      name: "Technical Support",
-      template:
-        "Provide technical support for the following issue: {{user_query}}. Include step-by-step instructions.",
-    },
-  ]);
-
-  const [aiModelConfig, setAiModelConfig] = useState({
-    defaultModel: "gemini",
-    temperature: 0.7,
-    maxTokens: 1000,
-    topP: 0.9,
-  });
-
-  const [widgetAppearance, setWidgetAppearance] = useState({
-    primaryColor: "#4f46e5",
-    secondaryColor: "#ffffff",
-    fontFamily: "Inter",
-    position: "bottom-right",
-    initialMessage: "Hello! How can I help you today?",
-  });
-
-  const [responseFormatting, setResponseFormatting] = useState({
-    enableFormatting: true,
-    includeTitle: true,
-    includeIntro: true,
-    includeContentBlocks: true,
-    includeFAQ: false,
-    includeActions: true,
-    includeDisclaimer: false,
-    defaultDisclaimer:
-      "This information is provided for general guidance only.",
-  });
+  // Load prompt templates
+  useEffect(() => {
+    const templates = PromptTemplateService.getTemplates();
+    setPromptTemplates(templates);
+    if (templates.length > 0) {
+      setSelectedTemplate(templates[0].id);
+    }
+  }, []);
 
   const handleSaveConfig = () => {
-    const config = {
-      knowledgeBase: knowledgeBaseConfig,
-      promptTemplates,
-      aiModel: aiModelConfig,
-      widgetAppearance,
-      responseFormatting,
+    // Save all configuration
+    updateConfig({
+      knowledgeBase: config.knowledgeBase,
+      aiModel: {
+        ...config.aiModel,
+        // Add API keys if provided
+        ...(apiKeys.gemini && config.aiModel.modelType === 'gemini' ? { apiKey: apiKeys.gemini } : {}),
+        ...(apiKeys.huggingface && config.aiModel.modelType === 'huggingface' ? { apiKey: apiKeys.huggingface } : {}),
+      },
+      widgetAppearance: config.widgetAppearance,
+      responseFormatting: config.responseFormatting,
+    });
+
+    toast({
+      title: "Configuration saved",
+      description: "Your changes have been applied successfully.",
+      duration: 3000,
+    });
+
+    if (onSave) {
+      onSave(config);
+    }
+  };
+
+  const handleAddTemplate = () => {
+    const newTemplate: PromptTemplate = {
+      id: `template-${Date.now()}`,
+      name: "New Template",
+      template: "Answer the following question: {{user_query}}.",
+      category: "General",
+      isActive: true,
+      lastModified: new Date(),
     };
-    onSave(config);
+
+    setPromptTemplates([...promptTemplates, newTemplate]);
+    setSelectedTemplate(newTemplate.id);
+    setEditingTemplate(newTemplate);
+  };
+
+  const handleSaveTemplate = () => {
+    if (!editingTemplate) return;
+
+    const updatedTemplates = promptTemplates.map(template => 
+      template.id === editingTemplate.id ? editingTemplate : template
+    );
+
+    setPromptTemplates(updatedTemplates);
+    setEditingTemplate(null);
+
+    toast({
+      title: "Template saved",
+      description: "Your template has been updated successfully.",
+      duration: 3000,
+    });
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    const updatedTemplates = promptTemplates.filter(template => template.id !== id);
+    setPromptTemplates(updatedTemplates);
+
+    if (selectedTemplate === id) {
+      setSelectedTemplate(updatedTemplates.length > 0 ? updatedTemplates[0].id : null);
+      setEditingTemplate(null);
+    }
+
+    toast({
+      title: "Template deleted",
+      description: "The template has been removed.",
+      duration: 3000,
+    });
+  };
+
+  const handleDuplicateTemplate = (template: PromptTemplate) => {
+    const newTemplate: PromptTemplate = {
+      ...template,
+      id: `template-${Date.now()}`,
+      name: `${template.name} (Copy)`,
+      lastModified: new Date(),
+    };
+
+    setPromptTemplates([...promptTemplates, newTemplate]);
+    setSelectedTemplate(newTemplate.id);
+    setEditingTemplate(newTemplate);
+
+    toast({
+      title: "Template duplicated",
+      description: "A copy of the template has been created.",
+      duration: 3000,
+    });
+  };
+
+  const handleTestApiKey = (provider: 'gemini' | 'huggingface') => {
+    // In a real implementation, this would test the API key against the provider's API
+    setTimeout(() => {
+      toast({
+        title: "API key validated",
+        description: `Your ${provider} API key is valid and working correctly.`,
+        duration: 3000,
+      });
+    }, 1000);
   };
 
   return (
@@ -107,10 +192,15 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
             Configure your AI chat system settings
           </p>
         </div>
-        <Button onClick={handleSaveConfig}>
-          <Save className="mr-2 h-4 w-4" />
-          Save Configuration
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowWidgetPreview(!showWidgetPreview)}>
+            {showWidgetPreview ? "Hide Preview" : "Show Widget Preview"}
+          </Button>
+          <Button onClick={handleSaveConfig}>
+            <Save className="mr-2 h-4 w-4" />
+            Save Configuration
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -160,10 +250,9 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                 </div>
                 <Switch
                   id="enable-kb"
-                  checked={knowledgeBaseConfig.enableKnowledgeBase}
+                  checked={config.knowledgeBase.enableKnowledgeBase}
                   onCheckedChange={(checked) =>
-                    setKnowledgeBaseConfig({
-                      ...knowledgeBaseConfig,
+                    updateKnowledgeBaseConfig({
                       enableKnowledgeBase: checked,
                     })
                   }
@@ -182,10 +271,9 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                 </div>
                 <Switch
                   id="auto-inject"
-                  checked={knowledgeBaseConfig.autoInjectRelevantContent}
+                  checked={config.knowledgeBase.autoInjectRelevantContent}
                   onCheckedChange={(checked) =>
-                    setKnowledgeBaseConfig({
-                      ...knowledgeBaseConfig,
+                    updateKnowledgeBaseConfig({
                       autoInjectRelevantContent: checked,
                     })
                   }
@@ -201,101 +289,391 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                 </div>
                 <Switch
                   id="cite-sources"
-                  checked={knowledgeBaseConfig.citeSources}
+                  checked={config.knowledgeBase.citeSources}
                   onCheckedChange={(checked) =>
-                    setKnowledgeBaseConfig({
-                      ...knowledgeBaseConfig,
+                    updateKnowledgeBaseConfig({
                       citeSources: checked,
                     })
                   }
                 />
               </div>
             </CardContent>
+            <CardFooter className="flex justify-between border-t pt-6">
+              <Button variant="outline">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Manage Knowledge Base
+              </Button>
+              <Button>
+                <Check className="mr-2 h-4 w-4" />
+                Apply Settings
+              </Button>
+            </CardFooter>
           </Card>
         </TabsContent>
 
         {/* Prompt Templates Tab */}
         <TabsContent value="prompt-templates" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Prompt Templates</CardTitle>
-              <CardDescription>
-                Create and manage templates for different types of user queries.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <Button variant="outline">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add New Template
-                </Button>
-              </div>
-              <div className="space-y-4">
-                {promptTemplates.map((template) => (
-                  <Card key={template.id}>
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-center">
-                        <CardTitle className="text-lg">
-                          {template.name}
-                        </CardTitle>
-                        <Badge variant="outline">Template</Badge>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-1">
+              <Card className="h-full">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>Template Library</CardTitle>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Search className="h-4 w-4 mr-1" />
+                        Search
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleAddTemplate}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add New
+                      </Button>
+                    </div>
+                  </div>
+                  <CardDescription>
+                    Select a template to edit or preview
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {promptTemplates.map((template) => (
+                      <div
+                        key={template.id}
+                        className={`p-4 cursor-pointer hover:bg-muted/50 ${selectedTemplate === template.id ? "bg-primary/5" : ""}`}
+                        onClick={() => {
+                          setSelectedTemplate(template.id);
+                          setEditingTemplate(null);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-medium">{template.name}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs">
+                                {template.category}
+                              </Badge>
+                              {template.isDefault && (
+                                <Badge className="text-xs bg-primary/20 text-primary border-primary/20">
+                                  Default
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTemplate(template);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDuplicateTemplate(template);
+                              }}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTemplate(template.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </CardHeader>
-                    <CardContent>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="md:col-span-2">
+              {selectedTemplate && !editingTemplate && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>
+                        {promptTemplates.find(t => t.id === selectedTemplate)?.name}
+                      </CardTitle>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingTemplate(promptTemplates.find(t => t.id === selectedTemplate) || null)}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Template
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          Clone
+                        </Button>
+                      </div>
+                    </div>
+                    <CardDescription>
+                      Template preview and usage information
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      <div className="bg-muted/20 p-4 rounded-md">
+                        <h3 className="text-sm font-medium mb-2">Template Content</h3>
+                        <div className="bg-muted p-3 rounded-md font-mono text-sm">
+                          {promptTemplates.find(t => t.id === selectedTemplate)?.template}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium">Template Information</h3>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="text-muted-foreground">Category:</div>
+                          <div>{promptTemplates.find(t => t.id === selectedTemplate)?.category}</div>
+                          <div className="text-muted-foreground">Default Template:</div>
+                          <div>{promptTemplates.find(t => t.id === selectedTemplate)?.isDefault ? "Yes" : "No"}</div>
+                          <div className="text-muted-foreground">Last Modified:</div>
+                          <div>{promptTemplates.find(t => t.id === selectedTemplate)?.lastModified?.toLocaleString() || "Unknown"}</div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium">Example Usage</h3>
+                        <div className="bg-muted/20 p-4 rounded-md">
+                          <div className="space-y-4">
+                            <div>
+                              <div className="text-sm font-medium mb-1">User Query:</div>
+                              <div className="bg-muted p-2 rounded-md text-sm">How do I reset my password?</div>
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium mb-1">Applied Template:</div>
+                              <div className="bg-muted p-2 rounded-md text-sm">
+                                {(promptTemplates.find(t => t.id === selectedTemplate)?.template || "").replace("{{user_query}}", "How do I reset my password?")}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {editingTemplate && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Prompt Template Editor</CardTitle>
+                    <CardDescription>
+                      Create and modify prompt templates with variables
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-4">
-                        <div>
-                          <Label htmlFor={`template-name-${template.id}`}>
-                            Template Name
-                          </Label>
+                        <div className="space-y-2">
+                          <Label htmlFor="template-name">Template Title</Label>
                           <Input
-                            id={`template-name-${template.id}`}
-                            value={template.name}
-                            onChange={(e) => {
-                              const updated = promptTemplates.map((t) =>
-                                t.id === template.id
-                                  ? { ...t, name: e.target.value }
-                                  : t,
-                              );
-                              setPromptTemplates(updated);
-                            }}
+                            id="template-name"
+                            value={editingTemplate.name}
+                            onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                            placeholder="Enter a descriptive title"
                           />
                         </div>
-                        <div>
-                          <Label htmlFor={`template-content-${template.id}`}>
-                            Template Content
-                          </Label>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="template-description">Description</Label>
                           <Textarea
-                            id={`template-content-${template.id}`}
-                            value={template.template}
-                            rows={4}
-                            onChange={(e) => {
-                              const updated = promptTemplates.map((t) =>
-                                t.id === template.id
-                                  ? { ...t, template: e.target.value }
-                                  : t,
-                              );
-                              setPromptTemplates(updated);
-                            }}
+                            id="template-description"
+                            value={editingTemplate.description || ""}
+                            onChange={(e) => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
+                            placeholder="What is this template used for?"
+                            rows={2}
                           />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Use {{ user_query }} to include the user's question.
-                            Other placeholders: {{ business_name }},{" "}
-                            {{ context }}
-                          </p>
                         </div>
-                        <div className="flex justify-end space-x-2">
-                          <Button variant="outline" size="sm">
-                            Delete
-                          </Button>
-                          <Button size="sm">Save</Button>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="template-category">Category</Label>
+                          <Select
+                            value={editingTemplate.category}
+                            onValueChange={(value) => setEditingTemplate({ ...editingTemplate, category: value })}
+                          >
+                            <SelectTrigger id="template-category">
+                              <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="General">General</SelectItem>
+                              <SelectItem value="Customer Service">Customer Service</SelectItem>
+                              <SelectItem value="Support">Support</SelectItem>
+                              <SelectItem value="Sales">Sales</SelectItem>
+                              <SelectItem value="Marketing">Marketing</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Tags</Label>
+                          <div className="flex flex-wrap gap-2 p-2 border rounded-md">
+                            <Badge variant="secondary" className="px-2 py-1">
+                              AI <X className="h-3 w-3 ml-1 cursor-pointer" />
+                            </Badge>
+                            <Badge variant="secondary" className="px-2 py-1">
+                              Customer Support <X className="h-3 w-3 ml-1 cursor-pointer" />
+                            </Badge>
+                            <Input 
+                              className="w-24 h-7 border-none bg-transparent" 
+                              placeholder="Add tag..." 
+                            />
+                          </div>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor="template-content">Rich Prompt Editor</Label>
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                Insert Variable
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="border rounded-md">
+                            <div className="flex items-center gap-1 p-1 border-b">
+                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                                <Bold className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                                <Italic className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                                <List className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                                <ListOrdered className="h-3.5 w-3.5" />
+                              </Button>
+                              <Separator orientation="vertical" className="h-6 mx-1" />
+                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                                <Code className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                                <Link className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <Textarea
+                              id="template-content"
+                              value={editingTemplate.template}
+                              onChange={(e) => setEditingTemplate({ ...editingTemplate, template: e.target.value })}
+                              rows={10}
+                              className="font-mono text-sm border-none resize-none focus-visible:ring-0"
+                              placeholder="Enter your prompt template here. Use {{variables}} for dynamic content."
+                            />
+                          </div>
+                          <div className="bg-muted/30 p-3 rounded-md">
+                            <h4 className="text-sm font-medium mb-2">Available Variables</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {PromptTemplateService.getVariables().map((variable) => (
+                                <Badge
+                                  key={variable.name}
+                                  variant="outline"
+                                  className="cursor-pointer hover:bg-primary/10"
+                                  title={variable.description}
+                                  onClick={() => {
+                                    const cursorPos = (document.getElementById('template-content') as HTMLTextAreaElement)?.selectionStart || 0;
+                                    const textBefore = editingTemplate.template.substring(0, cursorPos);
+                                    const textAfter = editingTemplate.template.substring(cursorPos);
+                                    setEditingTemplate({
+                                      ...editingTemplate,
+                                      template: `${textBefore}{{${variable.name}}}${textAfter}`
+                                    });
+                                  }}
+                                >
+                                  {`{{${variable.name}}}`}
+                                </Badge>
+                              ))}
+                              <Badge
+                                variant="outline"
+                                className="cursor-pointer hover:bg-primary/10"
+                              >
+                                {{language}}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className="cursor-pointer hover:bg-primary/10"
+                              >
+                                {{service_category}}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-medium">AI Output Preview</h3>
+                        <Button variant="outline" size="sm">
+                          <Play className="h-4 w-4 mr-1" />
+                          Test This Prompt
+                        </Button>
+                      </div>
+                      <div className="bg-muted/20 p-4 rounded-md min-h-[150px]">
+                        <div className="text-sm text-muted-foreground italic text-center">
+                          Preview of AI response will appear here when you test the prompt
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 mt-4">
+                      <Switch
+                        id="is-default"
+                        checked={editingTemplate.isDefault || false}
+                        onCheckedChange={(checked) => setEditingTemplate({ ...editingTemplate, isDefault: checked })}
+                      />
+                      <div>
+                        <Label htmlFor="is-default">Set as Default Template</Label>
+                        <p className="text-xs text-muted-foreground">Use this template when no specific template is selected</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-between border-t pt-6">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingTemplate(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button variant="secondary">
+                        <Save className="mr-2 h-4 w-4" />
+                        Save as Draft
+                      </Button>
+                    </div>
+                    <Button onClick={handleSaveTemplate}>
+                      <Check className="mr-2 h-4 w-4" />
+                      Publish Template
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
         {/* AI Models Tab */}
@@ -311,9 +689,9 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
               <div className="space-y-2">
                 <Label htmlFor="default-model">Default AI Model</Label>
                 <Select
-                  value={aiModelConfig.defaultModel}
-                  onValueChange={(value) =>
-                    setAiModelConfig({ ...aiModelConfig, defaultModel: value })
+                  value={config.aiModel.modelType}
+                  onValueChange={(value: any) =>
+                    updateAIModelConfig({ modelType: value })
                   }
                 >
                   <SelectTrigger id="default-model">
@@ -327,25 +705,93 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                 </Select>
               </div>
 
+              {/* API Key Management */}
+              <div className="space-y-4 p-4 border rounded-md bg-muted/10">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  <Key className="h-4 w-4" />
+                  API Key Configuration
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="gemini-api-key">Gemini API Key</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="gemini-api-key"
+                        type="password"
+                        placeholder="Enter your Gemini API key"
+                        value={apiKeys.gemini}
+                        onChange={(e) => setApiKeys({ ...apiKeys, gemini: e.target.value })}
+                        className="flex-1"
+                      />
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleTestApiKey('gemini')}
+                        disabled={!apiKeys.gemini}
+                      >
+                        Test
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                        Get a Gemini API key <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="huggingface-api-key">Hugging Face API Key</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="huggingface-api-key"
+                        type="password"
+                        placeholder="Enter your Hugging Face API key"
+                        value={apiKeys.huggingface}
+                        onChange={(e) => setApiKeys({ ...apiKeys, huggingface: e.target.value })}
+                        className="flex-1"
+                      />
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleTestApiKey('huggingface')}
+                        disabled={!apiKeys.huggingface}
+                      >
+                        Test
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                        Get a Hugging Face API key <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="temperature">Temperature</Label>
-                  <div className="flex items-center space-x-2">
-                    <Input
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>More Deterministic</span>
+                      <span>More Creative</span>
+                    </div>
+                    <Slider
                       id="temperature"
-                      type="number"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={aiModelConfig.temperature}
-                      onChange={(e) =>
-                        setAiModelConfig({
-                          ...aiModelConfig,
-                          temperature: parseFloat(e.target.value),
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      value={[config.aiModel.temperature]}
+                      onValueChange={(value) =>
+                        updateAIModelConfig({
+                          temperature: value[0],
                         })
                       }
                     />
-                    <span className="text-sm text-muted-foreground">0-1</span>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>0.0</span>
+                      <span>0.5</span>
+                      <span>1.0</span>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Controls randomness: lower values are more deterministic
@@ -359,10 +805,9 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                     type="number"
                     min="100"
                     max="4000"
-                    value={aiModelConfig.maxTokens}
+                    value={config.aiModel.maxTokens}
                     onChange={(e) =>
-                      setAiModelConfig({
-                        ...aiModelConfig,
+                      updateAIModelConfig({
                         maxTokens: parseInt(e.target.value),
                       })
                     }
@@ -375,174 +820,266 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
 
               <div className="space-y-2">
                 <Label htmlFor="top-p">Top P</Label>
-                <div className="flex items-center space-x-2">
-                  <Input
+                <div className="space-y-2">
+                  <Slider
                     id="top-p"
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={aiModelConfig.topP}
-                    onChange={(e) =>
-                      setAiModelConfig({
-                        ...aiModelConfig,
-                        topP: parseFloat(e.target.value),
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    value={[config.aiModel.topP]}
+                    onValueChange={(value) =>
+                      updateAIModelConfig({
+                        topP: value[0],
                       })
                     }
                   />
-                  <span className="text-sm text-muted-foreground">0-1</span>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>0.0</span>
+                    <span>0.5</span>
+                    <span>1.0</span>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Controls diversity via nucleus sampling
                 </p>
               </div>
 
-              <div className="pt-4">
-                <Button>Apply Model Settings</Button>
+              <div className="p-4 border rounded-md bg-muted/10">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium">Model Usage Note</h4>
+                    <p className="text-sm text-muted-foreground">
+                      API usage may incur costs depending on your plan. Make sure to check the pricing details for your selected model provider.
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
+            <CardFooter className="flex justify-between border-t pt-6">
+              <Button variant="outline">
+                <Code className="mr-2 h-4 w-4" />
+                Advanced Settings
+              </Button>
+              <Button>
+                <Check className="mr-2 h-4 w-4" />
+                Apply Model Settings
+              </Button>
+            </CardFooter>
           </Card>
         </TabsContent>
 
         {/* Widget Appearance Tab */}
         <TabsContent value="widget-appearance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Widget Appearance</CardTitle>
-              <CardDescription>
-                Customize how your chat widget looks and behaves.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="primary-color">Primary Color</Label>
-                  <div className="flex items-center space-x-2">
-                    <Input
-                      id="primary-color"
-                      type="color"
-                      value={widgetAppearance.primaryColor}
-                      onChange={(e) =>
-                        setWidgetAppearance({
-                          ...widgetAppearance,
-                          primaryColor: e.target.value,
-                        })
-                      }
-                      className="w-12 h-8 p-1"
-                    />
-                    <Input
-                      value={widgetAppearance.primaryColor}
-                      onChange={(e) =>
-                        setWidgetAppearance({
-                          ...widgetAppearance,
-                          primaryColor: e.target.value,
-                        })
-                      }
-                      className="flex-1"
-                    />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Widget Appearance</CardTitle>
+                  <CardDescription>
+                    Customize how your chat widget looks and behaves.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="widget-title">Widget Title</Label>
+                      <Input
+                        id="widget-title"
+                        value={config.widgetAppearance.title}
+                        onChange={(e) =>
+                          updateWidgetAppearance({
+                            title: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="widget-subtitle">Widget Subtitle</Label>
+                      <Input
+                        id="widget-subtitle"
+                        value={config.widgetAppearance.subtitle}
+                        onChange={(e) =>
+                          updateWidgetAppearance({
+                            subtitle: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="secondary-color">Secondary Color</Label>
-                  <div className="flex items-center space-x-2">
-                    <Input
-                      id="secondary-color"
-                      type="color"
-                      value={widgetAppearance.secondaryColor}
-                      onChange={(e) =>
-                        setWidgetAppearance({
-                          ...widgetAppearance,
-                          secondaryColor: e.target.value,
-                        })
-                      }
-                      className="w-12 h-8 p-1"
-                    />
-                    <Input
-                      value={widgetAppearance.secondaryColor}
-                      onChange={(e) =>
-                        setWidgetAppearance({
-                          ...widgetAppearance,
-                          secondaryColor: e.target.value,
-                        })
-                      }
-                      className="flex-1"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="primary-color">Primary Color</Label>
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          id="primary-color"
+                          type="color"
+                          value={config.widgetAppearance.primaryColor}
+                          onChange={(e) =>
+                            updateWidgetAppearance({
+                              primaryColor: e.target.value,
+                            })
+                          }
+                          className="w-12 h-8 p-1"
+                        />
+                        <Input
+                          value={config.widgetAppearance.primaryColor}
+                          onChange={(e) =>
+                            updateWidgetAppearance({
+                              primaryColor: e.target.value,
+                            })
+                          }
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="secondary-color">Secondary Color</Label>
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          id="secondary-color"
+                          type="color"
+                          value={config.widgetAppearance.secondaryColor}
+                          onChange={(e) =>
+                            updateWidgetAppearance({
+                              secondaryColor: e.target.value,
+                            })
+                          }
+                          className="w-12 h-8 p-1"
+                        />
+                        <Input
+                          value={config.widgetAppearance.secondaryColor}
+                          onChange={(e) =>
+                            updateWidgetAppearance({
+                              secondaryColor: e.target.value,
+                            })
+                          }
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="font-family">Font Family</Label>
-                <Select
-                  value={widgetAppearance.fontFamily}
-                  onValueChange={(value) =>
-                    setWidgetAppearance({
-                      ...widgetAppearance,
-                      fontFamily: value,
-                    })
-                  }
-                >
-                  <SelectTrigger id="font-family">
-                    <SelectValue placeholder="Select a font" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Inter">Inter</SelectItem>
-                    <SelectItem value="Roboto">Roboto</SelectItem>
-                    <SelectItem value="Open Sans">Open Sans</SelectItem>
-                    <SelectItem value="Lato">Lato</SelectItem>
-                    <SelectItem value="Poppins">Poppins</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="font-family">Font Family</Label>
+                      <Select
+                        value={config.widgetAppearance.fontFamily}
+                        onValueChange={(value) =>
+                          updateWidgetAppearance({
+                            fontFamily: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="font-family">
+                          <SelectValue placeholder="Select a font" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Inter">Inter</SelectItem>
+                          <SelectItem value="Roboto">Roboto</SelectItem>
+                          <SelectItem value="Open Sans">Open Sans</SelectItem>
+                          <SelectItem value="Lato">Lato</SelectItem>
+                          <SelectItem value="Poppins">Poppins</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="widget-position">Widget Position</Label>
-                <Select
-                  value={widgetAppearance.position}
-                  onValueChange={(value) =>
-                    setWidgetAppearance({
-                      ...widgetAppearance,
-                      position: value,
-                    })
-                  }
-                >
-                  <SelectTrigger id="widget-position">
-                    <SelectValue placeholder="Select a position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                    <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                    <SelectItem value="top-right">Top Right</SelectItem>
-                    <SelectItem value="top-left">Top Left</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="widget-position">Widget Position</Label>
+                      <Select
+                        value={config.widgetAppearance.position}
+                        onValueChange={(value: any) =>
+                          updateWidgetAppearance({
+                            position: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="widget-position">
+                          <SelectValue placeholder="Select a position" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                          <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                          <SelectItem value="top-right">Top Right</SelectItem>
+                          <SelectItem value="top-left">Top Left</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="initial-message">Initial Message</Label>
-                <Textarea
-                  id="initial-message"
-                  value={widgetAppearance.initialMessage}
-                  onChange={(e) =>
-                    setWidgetAppearance({
-                      ...widgetAppearance,
-                      initialMessage: e.target.value,
-                    })
-                  }
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  This message will be displayed when a user first opens the
-                  chat
-                </p>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="avatar-url">Avatar URL</Label>
+                    <Input
+                      id="avatar-url"
+                      value={config.widgetAppearance.avatarUrl}
+                      onChange={(e) =>
+                        updateWidgetAppearance({
+                          avatarUrl: e.target.value,
+                        })
+                      }
+                      placeholder="https://example.com/avatar.png"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      URL to the avatar image shown in the chat widget
+                    </p>
+                  </div>
 
-              <div className="pt-4">
-                <Button>Preview Widget</Button>
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="space-y-2">
+                    <Label htmlFor="initial-message">Initial Message</Label>
+                    <Textarea
+                      id="initial-message"
+                      value={config.widgetAppearance.initialMessage}
+                      onChange={(e) =>
+                        updateWidgetAppearance({
+                          initialMessage: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This message will be displayed when a user first opens the
+                      chat
+                    </p>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between border-t pt-6">
+                  <Button variant="outline" onClick={() => setShowWidgetPreview(!showWidgetPreview)}>
+                    {showWidgetPreview ? "Hide Preview" : "Show Preview"}
+                  </Button>
+                  <Button>
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Appearance Settings
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
+
+            <div className="md:col-span-1">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Widget Preview</CardTitle>
+                  <CardDescription>
+                    See how your chat widget will appear to users
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 relative h-[400px] bg-muted/20 flex items-center justify-center">
+                  <div className="text-center p-4">
+                    <p className="text-muted-foreground mb-4">
+                      {showWidgetPreview ? "Widget is visible in the bottom right corner" : "Click 'Show Preview' to see the widget"}
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowWidgetPreview(!showWidgetPreview)}
+                    >
+                      {showWidgetPreview ? "Hide Preview" : "Show Preview"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* Response Formatting Tab */}
@@ -566,10 +1103,9 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                 </div>
                 <Switch
                   id="enable-formatting"
-                  checked={responseFormatting.enableFormatting}
+                  checked={config.responseFormatting.enableFormatting}
                   onCheckedChange={(checked) =>
-                    setResponseFormatting({
-                      ...responseFormatting,
+                    updateResponseFormattingConfig({
                       enableFormatting: checked,
                     })
                   }
@@ -586,13 +1122,13 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="include-title"
-                      checked={responseFormatting.includeTitle}
+                      checked={config.responseFormatting.includeTitle}
                       onCheckedChange={(checked) =>
-                        setResponseFormatting({
-                          ...responseFormatting,
+                        updateResponseFormattingConfig({
                           includeTitle: checked,
                         })
                       }
+                      disabled={!config.responseFormatting.enableFormatting}
                     />
                     <Label htmlFor="include-title">Include Title</Label>
                   </div>
@@ -600,109 +1136,5 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="include-intro"
-                      checked={responseFormatting.includeIntro}
+                      checked={config.responseFormatting.includeIntro}
                       onCheckedChange={(checked) =>
-                        setResponseFormatting({
-                          ...responseFormatting,
-                          includeIntro: checked,
-                        })
-                      }
-                    />
-                    <Label htmlFor="include-intro">Include Introduction</Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="include-content-blocks"
-                      checked={responseFormatting.includeContentBlocks}
-                      onCheckedChange={(checked) =>
-                        setResponseFormatting({
-                          ...responseFormatting,
-                          includeContentBlocks: checked,
-                        })
-                      }
-                    />
-                    <Label htmlFor="include-content-blocks">
-                      Include Content Blocks
-                    </Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="include-faq"
-                      checked={responseFormatting.includeFAQ}
-                      onCheckedChange={(checked) =>
-                        setResponseFormatting({
-                          ...responseFormatting,
-                          includeFAQ: checked,
-                        })
-                      }
-                    />
-                    <Label htmlFor="include-faq">Include FAQ Section</Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="include-actions"
-                      checked={responseFormatting.includeActions}
-                      onCheckedChange={(checked) =>
-                        setResponseFormatting({
-                          ...responseFormatting,
-                          includeActions: checked,
-                        })
-                      }
-                    />
-                    <Label htmlFor="include-actions">
-                      Include Action Buttons
-                    </Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="include-disclaimer"
-                      checked={responseFormatting.includeDisclaimer}
-                      onCheckedChange={(checked) =>
-                        setResponseFormatting({
-                          ...responseFormatting,
-                          includeDisclaimer: checked,
-                        })
-                      }
-                    />
-                    <Label htmlFor="include-disclaimer">
-                      Include Disclaimer
-                    </Label>
-                  </div>
-                </div>
-              </div>
-
-              {responseFormatting.includeDisclaimer && (
-                <div className="space-y-2">
-                  <Label htmlFor="default-disclaimer">
-                    Default Disclaimer Text
-                  </Label>
-                  <Textarea
-                    id="default-disclaimer"
-                    value={responseFormatting.defaultDisclaimer}
-                    onChange={(e) =>
-                      setResponseFormatting({
-                        ...responseFormatting,
-                        defaultDisclaimer: e.target.value,
-                      })
-                    }
-                    rows={2}
-                  />
-                </div>
-              )}
-
-              <div className="pt-4">
-                <Button>Apply Formatting Settings</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-};
-
-export default ConfigurationPanel;
