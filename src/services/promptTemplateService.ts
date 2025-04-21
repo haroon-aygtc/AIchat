@@ -5,9 +5,17 @@ export interface PromptTemplate {
   name: string;
   template: string;
   category: string;
+  description?: string;
+  version?: string;
   isDefault?: boolean;
   isActive?: boolean;
   lastModified?: Date;
+  tags?: string[];
+  createdBy?: string;
+  createdAt?: Date;
+  usageCount?: number;
+  averageConfidence?: number;
+  status?: "draft" | "published" | "archived";
 }
 
 export interface PromptVariable {
@@ -24,9 +32,17 @@ const defaultTemplates: PromptTemplate[] = [
     template:
       "Answer the following question: {{user_query}}. Be concise and helpful.",
     category: "Customer Service",
+    description: "A general-purpose template for answering customer questions",
+    version: "1.0.0",
     isDefault: true,
     isActive: true,
     lastModified: new Date(),
+    tags: ["general", "customer service", "inquiry"],
+    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+    createdBy: "System",
+    usageCount: 245,
+    averageConfidence: 92,
+    status: "published",
   },
   {
     id: "technical",
@@ -34,8 +50,17 @@ const defaultTemplates: PromptTemplate[] = [
     template:
       "Provide technical support for the following issue: {{user_query}}. Include step-by-step instructions.",
     category: "Support",
+    description:
+      "Specialized template for technical troubleshooting with step-by-step guidance",
+    version: "1.2.1",
     isActive: true,
     lastModified: new Date(),
+    tags: ["technical", "support", "troubleshooting"],
+    createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000), // 45 days ago
+    createdBy: "System",
+    usageCount: 187,
+    averageConfidence: 88,
+    status: "published",
   },
   {
     id: "product",
@@ -43,8 +68,17 @@ const defaultTemplates: PromptTemplate[] = [
     template:
       "Provide detailed information about our products based on this query: {{user_query}}. Highlight key features and benefits.",
     category: "Sales",
+    description:
+      "Template for product inquiries that highlights features and benefits",
+    version: "1.1.0",
     isActive: true,
     lastModified: new Date(),
+    tags: ["product", "sales", "features"],
+    createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), // 60 days ago
+    createdBy: "System",
+    usageCount: 156,
+    averageConfidence: 94,
+    status: "published",
   },
   {
     id: "complaint",
@@ -52,8 +86,34 @@ const defaultTemplates: PromptTemplate[] = [
     template:
       "Address the following customer complaint with empathy: {{user_query}}. Offer a solution and next steps.",
     category: "Customer Service",
+    description:
+      "Empathetic template for handling customer complaints and offering solutions",
+    version: "1.0.2",
     isActive: true,
     lastModified: new Date(),
+    tags: ["complaint", "customer service", "resolution"],
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
+    createdBy: "System",
+    usageCount: 78,
+    averageConfidence: 86,
+    status: "published",
+  },
+  {
+    id: "onboarding",
+    name: "New User Onboarding",
+    template:
+      "Welcome to our platform! I see you're asking about: {{user_query}}. Let me help you get started with our service.",
+    category: "Customer Service",
+    description: "Friendly onboarding template for new users",
+    version: "0.9.1",
+    isActive: true,
+    lastModified: new Date(),
+    tags: ["onboarding", "welcome", "new user"],
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+    createdBy: "Admin",
+    usageCount: 42,
+    averageConfidence: 90,
+    status: "draft",
   },
 ];
 

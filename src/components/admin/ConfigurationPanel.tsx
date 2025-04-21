@@ -49,10 +49,25 @@ import {
   ListOrdered,
   Link,
   X,
+  Zap,
+  LayoutGrid,
+  History,
+  BookOpen,
+  Bookmark,
+  Download,
+  Upload,
+  RotateCw,
 } from "lucide-react";
 import { useConfig } from "@/context/ConfigContext";
-import PromptTemplateService, { PromptTemplate } from "@/services/promptTemplateService";
+import PromptTemplateService, {
+  PromptTemplate,
+} from "@/services/promptTemplateService";
 import ChatWidget from "@/components/chat/ChatWidget";
+import ResponseFormatter from "@/components/chat/ResponseFormatter";
+import KnowledgeSourceSelector from "@/components/admin/KnowledgeSourceSelector";
+import knowledgeSourceService, {
+  KnowledgeSource,
+} from "@/services/knowledgeSourceService";
 
 interface ConfigurationPanelProps {
   onSave?: (config: any) => void;
@@ -60,8 +75,15 @@ interface ConfigurationPanelProps {
 
 const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
   const { toast } = useToast();
-  const { config, updateConfig, updateWidgetAppearance, updateAIModelConfig, updateKnowledgeBaseConfig, updateResponseFormattingConfig } = useConfig();
-  const [activeTab, setActiveTab] = useState("knowledge-base");
+  const {
+    config,
+    updateConfig,
+    updateWidgetAppearance,
+    updateAIModelConfig,
+    updateKnowledgeBaseConfig,
+    updateResponseFormattingConfig,
+  } = useConfig();
+  const [activeTab, setActiveTab] = useState("prompt-templates");
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [showWidgetPreview, setShowWidgetPreview] = useState(false);
   const [apiKeys, setApiKeys] = useState({
@@ -69,7 +91,19 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
     huggingface: "",
   });
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [editingTemplate, setEditingTemplate] = useState<PromptTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<PromptTemplate | null>(
+    null,
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeSources, setActiveSources] = useState<KnowledgeSource[]>(
+    knowledgeSourceService.getActiveSources(),
+  );
+  const [testPromptInput, setTestPromptInput] = useState("");
+  const [testPromptResponse, setTestPromptResponse] = useState<string | null>(
+    null,
+  );
+  const [isTestingPrompt, setIsTestingPrompt] = useState(false);
+  const [testPromptConfidence, setTestPromptConfidence] = useState(0);
 
   // Load prompt templates
   useEffect(() => {
@@ -87,8 +121,12 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
       aiModel: {
         ...config.aiModel,
         // Add API keys if provided
-        ...(apiKeys.gemini && config.aiModel.modelType === 'gemini' ? { apiKey: apiKeys.gemini } : {}),
-        ...(apiKeys.huggingface && config.aiModel.modelType === 'huggingface' ? { apiKey: apiKeys.huggingface } : {}),
+        ...(apiKeys.gemini && config.aiModel.modelType === "gemini"
+          ? { apiKey: apiKeys.gemini }
+          : {}),
+        ...(apiKeys.huggingface && config.aiModel.modelType === "huggingface"
+          ? { apiKey: apiKeys.huggingface }
+          : {}),
       },
       widgetAppearance: config.widgetAppearance,
       responseFormatting: config.responseFormatting,
@@ -123,8 +161,8 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
   const handleSaveTemplate = () => {
     if (!editingTemplate) return;
 
-    const updatedTemplates = promptTemplates.map(template => 
-      template.id === editingTemplate.id ? editingTemplate : template
+    const updatedTemplates = promptTemplates.map((template) =>
+      template.id === editingTemplate.id ? editingTemplate : template,
     );
 
     setPromptTemplates(updatedTemplates);
@@ -138,11 +176,15 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
   };
 
   const handleDeleteTemplate = (id: string) => {
-    const updatedTemplates = promptTemplates.filter(template => template.id !== id);
+    const updatedTemplates = promptTemplates.filter(
+      (template) => template.id !== id,
+    );
     setPromptTemplates(updatedTemplates);
 
     if (selectedTemplate === id) {
-      setSelectedTemplate(updatedTemplates.length > 0 ? updatedTemplates[0].id : null);
+      setSelectedTemplate(
+        updatedTemplates.length > 0 ? updatedTemplates[0].id : null,
+      );
       setEditingTemplate(null);
     }
 
@@ -172,7 +214,7 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
     });
   };
 
-  const handleTestApiKey = (provider: 'gemini' | 'huggingface') => {
+  const handleTestApiKey = (provider: "gemini" | "huggingface") => {
     // In a real implementation, this would test the API key against the provider's API
     setTimeout(() => {
       toast({
@@ -182,6 +224,66 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
       });
     }, 1000);
   };
+
+  const handleTestPrompt = async () => {
+    if (!testPromptInput.trim() || !editingTemplate) return;
+
+    setIsTestingPrompt(true);
+    setTestPromptResponse(null);
+
+    try {
+      // Apply the template to the test input
+      const processedPrompt = PromptTemplateService.applyTemplate
+        ? PromptTemplateService.applyTemplate(editingTemplate.id, {
+            user_query: testPromptInput,
+          })
+        : editingTemplate.template.replace("{{user_query}}", testPromptInput);
+
+      // In a real implementation, this would call the AI service
+      // For demo, we'll simulate an API call with a timeout
+      setTimeout(() => {
+        // Generate a mock response
+        const mockResponse = `Here's a response to your query: "${testPromptInput}".\n\nThis response was generated using the "${editingTemplate.name}" template.\n\nThe template applied was: ${processedPrompt}`;
+
+        // Generate a random confidence score between 70-95%
+        const confidence = Math.floor(Math.random() * 26) + 70;
+
+        setTestPromptResponse(mockResponse);
+        setTestPromptConfidence(confidence);
+        setIsTestingPrompt(false);
+
+        toast({
+          title: "Test completed",
+          description: "The prompt template has been tested successfully.",
+          duration: 3000,
+        });
+      }, 1500);
+    } catch (error) {
+      console.error("Error testing prompt:", error);
+      setIsTestingPrompt(false);
+
+      toast({
+        title: "Test failed",
+        description: "There was an error testing the prompt template.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  };
+
+  // Filter templates based on search query
+  const filteredTemplates = promptTemplates.filter((template) => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase();
+    return (
+      template.name.toLowerCase().includes(query) ||
+      template.category.toLowerCase().includes(query) ||
+      template.template.toLowerCase().includes(query) ||
+      (template.description &&
+        template.description.toLowerCase().includes(query))
+    );
+  });
 
   return (
     <div className="w-full h-full bg-background p-6">
@@ -193,7 +295,10 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowWidgetPreview(!showWidgetPreview)}>
+          <Button
+            variant="outline"
+            onClick={() => setShowWidgetPreview(!showWidgetPreview)}
+          >
             {showWidgetPreview ? "Hide Preview" : "Show Widget Preview"}
           </Button>
           <Button onClick={handleSaveConfig}>
@@ -232,82 +337,209 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
 
         {/* Knowledge Base Tab */}
         <TabsContent value="knowledge-base" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <KnowledgeSourceSelector
+                onSourcesChange={(sources) => setActiveSources(sources)}
+              />
+            </div>
+            <div className="md:col-span-1">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Knowledge Base Settings</CardTitle>
+                  <CardDescription>
+                    Configure how the AI uses your knowledge base to enhance
+                    responses
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enable-kb">Enable Knowledge Base</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Allow the AI to use your knowledge base for responses
+                      </p>
+                    </div>
+                    <Switch
+                      id="enable-kb"
+                      checked={config.knowledgeBase.enableKnowledgeBase}
+                      onCheckedChange={(checked) =>
+                        updateKnowledgeBaseConfig({
+                          enableKnowledgeBase: checked,
+                        })
+                      }
+                    />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="auto-inject">
+                        Auto-inject Relevant Content
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically include relevant knowledge base content in
+                        AI responses
+                      </p>
+                    </div>
+                    <Switch
+                      id="auto-inject"
+                      checked={config.knowledgeBase.autoInjectRelevantContent}
+                      onCheckedChange={(checked) =>
+                        updateKnowledgeBaseConfig({
+                          autoInjectRelevantContent: checked,
+                        })
+                      }
+                    />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="cite-sources">Cite Sources</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Include citations when knowledge base content is used
+                      </p>
+                    </div>
+                    <Switch
+                      id="cite-sources"
+                      checked={config.knowledgeBase.citeSources}
+                      onCheckedChange={(checked) =>
+                        updateKnowledgeBaseConfig({
+                          citeSources: checked,
+                        })
+                      }
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label htmlFor="relevance-threshold">
+                      Relevance Threshold
+                    </Label>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Lower (More Results)</span>
+                        <span>Higher (More Relevant)</span>
+                      </div>
+                      <Slider
+                        id="relevance-threshold"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={[config.knowledgeBase.relevanceThreshold || 75]}
+                        onValueChange={(value) =>
+                          updateKnowledgeBaseConfig({
+                            relevanceThreshold: value[0],
+                          })
+                        }
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>0%</span>
+                        <span>50%</span>
+                        <span>100%</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Set the minimum relevance score for content to be included
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="max-sources">Maximum Sources</Label>
+                    <Input
+                      id="max-sources"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={config.knowledgeBase.maxSources || 3}
+                      onChange={(e) =>
+                        updateKnowledgeBaseConfig({
+                          maxSources: parseInt(e.target.value),
+                        })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Maximum number of knowledge sources to include in a
+                      response
+                    </p>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between border-t pt-6">
+                  <Button variant="outline">
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    View Knowledge Base
+                  </Button>
+                  <Button>
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Settings
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle>Knowledge Base Settings</CardTitle>
+              <CardTitle>Active Knowledge Sources</CardTitle>
               <CardDescription>
-                Configure how the AI uses your knowledge base to enhance
-                responses.
+                Currently active knowledge sources that will be used for AI
+                responses
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="enable-kb">Enable Knowledge Base</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Allow the AI to use your knowledge base for responses
-                  </p>
-                </div>
-                <Switch
-                  id="enable-kb"
-                  checked={config.knowledgeBase.enableKnowledgeBase}
-                  onCheckedChange={(checked) =>
-                    updateKnowledgeBaseConfig({
-                      enableKnowledgeBase: checked,
-                    })
-                  }
-                />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="auto-inject">
-                    Auto-inject Relevant Content
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically include relevant knowledge base content in AI
-                    responses
-                  </p>
-                </div>
-                <Switch
-                  id="auto-inject"
-                  checked={config.knowledgeBase.autoInjectRelevantContent}
-                  onCheckedChange={(checked) =>
-                    updateKnowledgeBaseConfig({
-                      autoInjectRelevantContent: checked,
-                    })
-                  }
-                />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="cite-sources">Cite Sources</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Include citations when knowledge base content is used
-                  </p>
-                </div>
-                <Switch
-                  id="cite-sources"
-                  checked={config.knowledgeBase.citeSources}
-                  onCheckedChange={(checked) =>
-                    updateKnowledgeBaseConfig({
-                      citeSources: checked,
-                    })
-                  }
-                />
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {activeSources.map((source) => (
+                  <div
+                    key={source.id}
+                    className="border rounded-md p-4 bg-muted/10"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        {source.icon &&
+                          (() => {
+                            const iconMap: Record<string, React.ReactNode> = {
+                              FileText: <FileText className="h-4 w-4" />,
+                              Database: <Database className="h-4 w-4" />,
+                              HelpCircle: <HelpCircle className="h-4 w-4" />,
+                              Code: <Code className="h-4 w-4" />,
+                              MessageSquare: (
+                                <MessageSquare className="h-4 w-4" />
+                              ),
+                              Presentation: (
+                                <Presentation className="h-4 w-4" />
+                              ),
+                            };
+                            return (
+                              iconMap[source.icon] || (
+                                <FileText className="h-4 w-4" />
+                              )
+                            );
+                          })()}
+                        <h3 className="font-medium">{source.name}</h3>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {source.documentCount} docs
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {source.description}
+                    </p>
+                  </div>
+                ))}
+
+                {activeSources.length === 0 && (
+                  <div className="col-span-full p-8 text-center border rounded-md bg-muted/10">
+                    <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-muted-foreground font-medium">
+                      No active knowledge sources
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Enable sources from the Knowledge Sources panel above
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
-            <CardFooter className="flex justify-between border-t pt-6">
-              <Button variant="outline">
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Manage Knowledge Base
-              </Button>
-              <Button>
-                <Check className="mr-2 h-4 w-4" />
-                Apply Settings
-              </Button>
-            </CardFooter>
           </Card>
         </TabsContent>
 
@@ -320,11 +552,29 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                   <div className="flex justify-between items-center">
                     <CardTitle>Template Library</CardTitle>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Search className="h-4 w-4 mr-1" />
-                        Search
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleAddTemplate}>
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          placeholder="Search templates..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-8 h-9"
+                        />
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        {searchQuery && (
+                          <button
+                            onClick={() => setSearchQuery("")}
+                            className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddTemplate}
+                      >
                         <Plus className="h-4 w-4 mr-1" />
                         Add New
                       </Button>
@@ -336,67 +586,78 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="divide-y">
-                    {promptTemplates.map((template) => (
-                      <div
-                        key={template.id}
-                        className={`p-4 cursor-pointer hover:bg-muted/50 ${selectedTemplate === template.id ? "bg-primary/5" : ""}`}
-                        onClick={() => {
-                          setSelectedTemplate(template.id);
-                          setEditingTemplate(null);
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-medium">{template.name}</h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                {template.category}
-                              </Badge>
-                              {template.isDefault && (
-                                <Badge className="text-xs bg-primary/20 text-primary border-primary/20">
-                                  Default
+                    {filteredTemplates.length > 0 ? (
+                      filteredTemplates.map((template) => (
+                        <div
+                          key={template.id}
+                          className={`p-4 cursor-pointer hover:bg-muted/50 ${selectedTemplate === template.id ? "bg-primary/5" : ""}`}
+                          onClick={() => {
+                            setSelectedTemplate(template.id);
+                            setEditingTemplate(null);
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="font-medium">{template.name}</h3>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {template.category}
                                 </Badge>
-                              )}
+                                {template.isDefault && (
+                                  <Badge className="text-xs bg-primary/20 text-primary border-primary/20">
+                                    Default
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingTemplate(template);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDuplicateTemplate(template);
+                                }}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteTemplate(template.id);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingTemplate(template);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDuplicateTemplate(template);
-                              }}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteTemplate(template.id);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center">
+                        <div className="text-muted-foreground mb-2">
+                          No templates found
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Try a different search term or create a new template
+                        </p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -408,21 +669,27 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                   <CardHeader>
                     <div className="flex justify-between items-center">
                       <CardTitle>
-                        {promptTemplates.find(t => t.id === selectedTemplate)?.name}
+                        {
+                          promptTemplates.find((t) => t.id === selectedTemplate)
+                            ?.name
+                        }
                       </CardTitle>
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setEditingTemplate(promptTemplates.find(t => t.id === selectedTemplate) || null)}
+                          onClick={() =>
+                            setEditingTemplate(
+                              promptTemplates.find(
+                                (t) => t.id === selectedTemplate,
+                              ) || null,
+                            )
+                          }
                         >
                           <Edit className="mr-2 h-4 w-4" />
                           Edit Template
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                        >
+                        <Button variant="outline" size="sm">
                           <Copy className="mr-2 h-4 w-4" />
                           Clone
                         </Button>
@@ -435,21 +702,49 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                   <CardContent>
                     <div className="space-y-6">
                       <div className="bg-muted/20 p-4 rounded-md">
-                        <h3 className="text-sm font-medium mb-2">Template Content</h3>
+                        <h3 className="text-sm font-medium mb-2">
+                          Template Content
+                        </h3>
                         <div className="bg-muted p-3 rounded-md font-mono text-sm">
-                          {promptTemplates.find(t => t.id === selectedTemplate)?.template}
+                          {
+                            promptTemplates.find(
+                              (t) => t.id === selectedTemplate,
+                            )?.template
+                          }
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <h3 className="text-sm font-medium">Template Information</h3>
+                        <h3 className="text-sm font-medium">
+                          Template Information
+                        </h3>
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div className="text-muted-foreground">Category:</div>
-                          <div>{promptTemplates.find(t => t.id === selectedTemplate)?.category}</div>
-                          <div className="text-muted-foreground">Default Template:</div>
-                          <div>{promptTemplates.find(t => t.id === selectedTemplate)?.isDefault ? "Yes" : "No"}</div>
-                          <div className="text-muted-foreground">Last Modified:</div>
-                          <div>{promptTemplates.find(t => t.id === selectedTemplate)?.lastModified?.toLocaleString() || "Unknown"}</div>
+                          <div>
+                            {
+                              promptTemplates.find(
+                                (t) => t.id === selectedTemplate,
+                              )?.category
+                            }
+                          </div>
+                          <div className="text-muted-foreground">
+                            Default Template:
+                          </div>
+                          <div>
+                            {promptTemplates.find(
+                              (t) => t.id === selectedTemplate,
+                            )?.isDefault
+                              ? "Yes"
+                              : "No"}
+                          </div>
+                          <div className="text-muted-foreground">
+                            Last Modified:
+                          </div>
+                          <div>
+                            {promptTemplates
+                              .find((t) => t.id === selectedTemplate)
+                              ?.lastModified?.toLocaleString() || "Unknown"}
+                          </div>
                         </div>
                       </div>
 
@@ -458,13 +753,26 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                         <div className="bg-muted/20 p-4 rounded-md">
                           <div className="space-y-4">
                             <div>
-                              <div className="text-sm font-medium mb-1">User Query:</div>
-                              <div className="bg-muted p-2 rounded-md text-sm">How do I reset my password?</div>
+                              <div className="text-sm font-medium mb-1">
+                                User Query:
+                              </div>
+                              <div className="bg-muted p-2 rounded-md text-sm">
+                                How do I reset my password?
+                              </div>
                             </div>
                             <div>
-                              <div className="text-sm font-medium mb-1">Applied Template:</div>
+                              <div className="text-sm font-medium mb-1">
+                                Applied Template:
+                              </div>
                               <div className="bg-muted p-2 rounded-md text-sm">
-                                {(promptTemplates.find(t => t.id === selectedTemplate)?.template || "").replace("{{user_query}}", "How do I reset my password?")}
+                                {(
+                                  promptTemplates.find(
+                                    (t) => t.id === selectedTemplate,
+                                  )?.template || ""
+                                ).replace(
+                                  "{{user_query}}",
+                                  "How do I reset my password?",
+                                )}
                               </div>
                             </div>
                           </div>
@@ -491,17 +799,29 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                           <Input
                             id="template-name"
                             value={editingTemplate.name}
-                            onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                            onChange={(e) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                name: e.target.value,
+                              })
+                            }
                             placeholder="Enter a descriptive title"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="template-description">Description</Label>
+                          <Label htmlFor="template-description">
+                            Description
+                          </Label>
                           <Textarea
                             id="template-description"
                             value={editingTemplate.description || ""}
-                            onChange={(e) => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
+                            onChange={(e) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                description: e.target.value,
+                              })
+                            }
                             placeholder="What is this template used for?"
                             rows={2}
                           />
@@ -511,17 +831,26 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                           <Label htmlFor="template-category">Category</Label>
                           <Select
                             value={editingTemplate.category}
-                            onValueChange={(value) => setEditingTemplate({ ...editingTemplate, category: value })}
+                            onValueChange={(value) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                category: value,
+                              })
+                            }
                           >
                             <SelectTrigger id="template-category">
                               <SelectValue placeholder="Select a category" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="General">General</SelectItem>
-                              <SelectItem value="Customer Service">Customer Service</SelectItem>
+                              <SelectItem value="Customer Service">
+                                Customer Service
+                              </SelectItem>
                               <SelectItem value="Support">Support</SelectItem>
                               <SelectItem value="Sales">Sales</SelectItem>
-                              <SelectItem value="Marketing">Marketing</SelectItem>
+                              <SelectItem value="Marketing">
+                                Marketing
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -533,11 +862,12 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                               AI <X className="h-3 w-3 ml-1 cursor-pointer" />
                             </Badge>
                             <Badge variant="secondary" className="px-2 py-1">
-                              Customer Support <X className="h-3 w-3 ml-1 cursor-pointer" />
+                              Customer Support{" "}
+                              <X className="h-3 w-3 ml-1 cursor-pointer" />
                             </Badge>
-                            <Input 
-                              className="w-24 h-7 border-none bg-transparent" 
-                              placeholder="Add tag..." 
+                            <Input
+                              className="w-24 h-7 border-none bg-transparent"
+                              placeholder="Add tag..."
                             />
                           </div>
                         </div>
@@ -546,9 +876,15 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <Label htmlFor="template-content">Rich Prompt Editor</Label>
+                            <Label htmlFor="template-content">
+                              Rich Prompt Editor
+                            </Label>
                             <div className="flex gap-2">
-                              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-xs"
+                              >
                                 <Sparkles className="h-3 w-3 mr-1" />
                                 Insert Variable
                               </Button>
@@ -556,68 +892,117 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                           </div>
                           <div className="border rounded-md">
                             <div className="flex items-center gap-1 p-1 border-b">
-                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                              >
                                 <Bold className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                              >
                                 <Italic className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                              >
                                 <List className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                              >
                                 <ListOrdered className="h-3.5 w-3.5" />
                               </Button>
-                              <Separator orientation="vertical" className="h-6 mx-1" />
-                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                              <Separator
+                                orientation="vertical"
+                                className="h-6 mx-1"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                              >
                                 <Code className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                              >
                                 <Link className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                             <Textarea
                               id="template-content"
                               value={editingTemplate.template}
-                              onChange={(e) => setEditingTemplate({ ...editingTemplate, template: e.target.value })}
+                              onChange={(e) =>
+                                setEditingTemplate({
+                                  ...editingTemplate,
+                                  template: e.target.value,
+                                })
+                              }
                               rows={10}
                               className="font-mono text-sm border-none resize-none focus-visible:ring-0"
                               placeholder="Enter your prompt template here. Use {{variables}} for dynamic content."
                             />
                           </div>
                           <div className="bg-muted/30 p-3 rounded-md">
-                            <h4 className="text-sm font-medium mb-2">Available Variables</h4>
+                            <h4 className="text-sm font-medium mb-2">
+                              Available Variables
+                            </h4>
                             <div className="flex flex-wrap gap-2">
-                              {PromptTemplateService.getVariables().map((variable) => (
-                                <Badge
-                                  key={variable.name}
-                                  variant="outline"
-                                  className="cursor-pointer hover:bg-primary/10"
-                                  title={variable.description}
-                                  onClick={() => {
-                                    const cursorPos = (document.getElementById('template-content') as HTMLTextAreaElement)?.selectionStart || 0;
-                                    const textBefore = editingTemplate.template.substring(0, cursorPos);
-                                    const textAfter = editingTemplate.template.substring(cursorPos);
-                                    setEditingTemplate({
-                                      ...editingTemplate,
-                                      template: `${textBefore}{{${variable.name}}}${textAfter}`
-                                    });
-                                  }}
-                                >
-                                  {`{{${variable.name}}}`}
-                                </Badge>
-                              ))}
+                              {PromptTemplateService.getVariables &&
+                                PromptTemplateService.getVariables().map(
+                                  (variable) => (
+                                    <Badge
+                                      key={variable.name}
+                                      variant="outline"
+                                      className="cursor-pointer hover:bg-primary/10"
+                                      title={variable.description}
+                                      onClick={() => {
+                                        const cursorPos =
+                                          (
+                                            document.getElementById(
+                                              "template-content",
+                                            ) as HTMLTextAreaElement
+                                          )?.selectionStart || 0;
+                                        const textBefore =
+                                          editingTemplate.template.substring(
+                                            0,
+                                            cursorPos,
+                                          );
+                                        const textAfter =
+                                          editingTemplate.template.substring(
+                                            cursorPos,
+                                          );
+                                        setEditingTemplate({
+                                          ...editingTemplate,
+                                          template: `${textBefore}{{${variable.name}}}${textAfter}`,
+                                        });
+                                      }}
+                                    >
+                                      {`{{${variable.name}}}`}
+                                    </Badge>
+                                  ),
+                                )}
                               <Badge
                                 variant="outline"
                                 className="cursor-pointer hover:bg-primary/10"
                               >
-                                {{language}}
+                                {{ language }}
                               </Badge>
                               <Badge
                                 variant="outline"
                                 className="cursor-pointer hover:bg-primary/10"
                               >
-                                {{service_category}}
+                                {{ service_category }}
                               </Badge>
                             </div>
                           </div>
@@ -627,15 +1012,104 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
 
                     <div className="mt-6 space-y-4">
                       <div className="flex justify-between items-center">
-                        <h3 className="text-sm font-medium">AI Output Preview</h3>
-                        <Button variant="outline" size="sm">
-                          <Play className="h-4 w-4 mr-1" />
-                          Test This Prompt
-                        </Button>
+                        <h3 className="text-sm font-medium">
+                          Test Prompt Template
+                        </h3>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setTestPromptInput("");
+                              setTestPromptResponse(null);
+                            }}
+                            disabled={isTestingPrompt}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Clear
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleTestPrompt}
+                            disabled={
+                              !testPromptInput.trim() || isTestingPrompt
+                            }
+                          >
+                            <Play className="h-4 w-4 mr-1" />
+                            Test This Prompt
+                          </Button>
+                        </div>
                       </div>
-                      <div className="bg-muted/20 p-4 rounded-md min-h-[150px]">
-                        <div className="text-sm text-muted-foreground italic text-center">
-                          Preview of AI response will appear here when you test the prompt
+
+                      <div className="space-y-3">
+                        <div className="flex flex-col space-y-2">
+                          <Label htmlFor="test-prompt-input">
+                            Enter a test query
+                          </Label>
+                          <Textarea
+                            id="test-prompt-input"
+                            placeholder="Type a sample user query to test this template..."
+                            value={testPromptInput}
+                            onChange={(e) => setTestPromptInput(e.target.value)}
+                            rows={2}
+                            disabled={isTestingPrompt}
+                          />
+                        </div>
+
+                        <div className="bg-muted/20 p-4 rounded-md min-h-[200px]">
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="text-sm font-medium">
+                              AI Output Preview
+                            </h4>
+                            {testPromptResponse && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground">
+                                  Confidence:
+                                </span>
+                                <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-primary"
+                                    style={{
+                                      width: `${testPromptConfidence}%`,
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-xs font-medium">
+                                  {testPromptConfidence}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {isTestingPrompt ? (
+                            <div className="flex items-center justify-center h-[150px]">
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+                                <p className="text-sm text-muted-foreground">
+                                  Processing your test query...
+                                </p>
+                              </div>
+                            </div>
+                          ) : testPromptResponse ? (
+                            <div className="space-y-3">
+                              <ResponseFormatter
+                                response={testPromptResponse}
+                                format="structured"
+                                includeTitle={true}
+                                includeIntro={true}
+                                includeContentBlocks={true}
+                                className="text-sm"
+                              />
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground italic text-center h-[150px] flex items-center justify-center">
+                              <p>
+                                Enter a test query and click "Test This Prompt"
+                                to see a preview
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -644,11 +1118,21 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                       <Switch
                         id="is-default"
                         checked={editingTemplate.isDefault || false}
-                        onCheckedChange={(checked) => setEditingTemplate({ ...editingTemplate, isDefault: checked })}
+                        onCheckedChange={(checked) =>
+                          setEditingTemplate({
+                            ...editingTemplate,
+                            isDefault: checked,
+                          })
+                        }
                       />
                       <div>
-                        <Label htmlFor="is-default">Set as Default Template</Label>
-                        <p className="text-xs text-muted-foreground">Use this template when no specific template is selected</p>
+                        <Label htmlFor="is-default">
+                          Set as Default Template
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Use this template when no specific template is
+                          selected
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -711,7 +1195,7 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                   <Key className="h-4 w-4" />
                   API Key Configuration
                 </h3>
-                
+
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="gemini-api-key">Gemini API Key</Label>
@@ -721,46 +1205,67 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                         type="password"
                         placeholder="Enter your Gemini API key"
                         value={apiKeys.gemini}
-                        onChange={(e) => setApiKeys({ ...apiKeys, gemini: e.target.value })}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, gemini: e.target.value })
+                        }
                         className="flex-1"
                       />
-                      <Button 
-                        variant="outline" 
-                        onClick={() => handleTestApiKey('gemini')}
+                      <Button
+                        variant="outline"
+                        onClick={() => handleTestApiKey("gemini")}
                         disabled={!apiKeys.gemini}
                       >
                         Test
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                        Get a Gemini API key <ExternalLink className="h-3 w-3" />
+                      <a
+                        href="https://ai.google.dev/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline flex items-center gap-1"
+                      >
+                        Get a Gemini API key{" "}
+                        <ExternalLink className="h-3 w-3" />
                       </a>
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <Label htmlFor="huggingface-api-key">Hugging Face API Key</Label>
+                    <Label htmlFor="huggingface-api-key">
+                      Hugging Face API Key
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         id="huggingface-api-key"
                         type="password"
                         placeholder="Enter your Hugging Face API key"
                         value={apiKeys.huggingface}
-                        onChange={(e) => setApiKeys({ ...apiKeys, huggingface: e.target.value })}
+                        onChange={(e) =>
+                          setApiKeys({
+                            ...apiKeys,
+                            huggingface: e.target.value,
+                          })
+                        }
                         className="flex-1"
                       />
-                      <Button 
-                        variant="outline" 
-                        onClick={() => handleTestApiKey('huggingface')}
+                      <Button
+                        variant="outline"
+                        onClick={() => handleTestApiKey("huggingface")}
                         disabled={!apiKeys.huggingface}
                       >
                         Test
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                        Get a Hugging Face API key <ExternalLink className="h-3 w-3" />
+                      <a
+                        href="https://huggingface.co/settings/tokens"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline flex items-center gap-1"
+                      >
+                        Get a Hugging Face API key{" "}
+                        <ExternalLink className="h-3 w-3" />
                       </a>
                     </p>
                   </div>
@@ -850,7 +1355,9 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                   <div>
                     <h4 className="text-sm font-medium">Model Usage Note</h4>
                     <p className="text-sm text-muted-foreground">
-                      API usage may incur costs depending on your plan. Make sure to check the pricing details for your selected model provider.
+                      API usage may incur costs depending on your plan. Make
+                      sure to check the pricing details for your selected model
+                      provider.
                     </p>
                   </div>
                 </div>
@@ -1000,8 +1507,12 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                           <SelectValue placeholder="Select a position" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                          <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                          <SelectItem value="bottom-right">
+                            Bottom Right
+                          </SelectItem>
+                          <SelectItem value="bottom-left">
+                            Bottom Left
+                          </SelectItem>
                           <SelectItem value="top-right">Top Right</SelectItem>
                           <SelectItem value="top-left">Top Left</SelectItem>
                         </SelectContent>
@@ -1045,7 +1556,10 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-between border-t pt-6">
-                  <Button variant="outline" onClick={() => setShowWidgetPreview(!showWidgetPreview)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowWidgetPreview(!showWidgetPreview)}
+                  >
                     {showWidgetPreview ? "Hide Preview" : "Show Preview"}
                   </Button>
                   <Button>
@@ -1067,7 +1581,9 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
                 <CardContent className="p-0 relative h-[400px] bg-muted/20 flex items-center justify-center">
                   <div className="text-center p-4">
                     <p className="text-muted-foreground mb-4">
-                      {showWidgetPreview ? "Widget is visible in the bottom right corner" : "Click 'Show Preview' to see the widget"}
+                      {showWidgetPreview
+                        ? "Widget is visible in the bottom right corner"
+                        : "Click 'Show Preview' to see the widget"}
                     </p>
                     <Button
                       variant="outline"
@@ -1084,57 +1600,39 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
 
         {/* Response Formatting Tab */}
         <TabsContent value="response-formatting" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Response Formatting</CardTitle>
-              <CardDescription>
-                Configure how AI responses are structured and formatted.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="enable-formatting">
-                    Enable Response Formatting
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Apply structured formatting to AI responses
-                  </p>
-                </div>
-                <Switch
-                  id="enable-formatting"
-                  checked={config.responseFormatting.enableFormatting}
-                  onCheckedChange={(checked) =>
-                    updateResponseFormattingConfig({
-                      enableFormatting: checked,
-                    })
-                  }
-                />
-              </div>
+          <ResponseFormattingBuilder
+            onSave={(formattingConfig) => {
+              updateResponseFormattingConfig({
+                enableFormatting: true,
+                ...formattingConfig,
+              });
 
-              <Separator />
+              toast({
+                title: "Response formatting updated",
+                description:
+                  "Your changes to the response format have been applied.",
+                duration: 3000,
+              });
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">
-                  Response Structure Elements
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="include-title"
-                      checked={config.responseFormatting.includeTitle}
-                      onCheckedChange={(checked) =>
-                        updateResponseFormattingConfig({
-                          includeTitle: checked,
-                        })
-                      }
-                      disabled={!config.responseFormatting.enableFormatting}
-                    />
-                    <Label htmlFor="include-title">Include Title</Label>
-                  </div>
+      {showWidgetPreview && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <ChatWidget
+            title={config.widgetAppearance.title}
+            subtitle={config.widgetAppearance.subtitle}
+            primaryColor={config.widgetAppearance.primaryColor}
+            secondaryColor={config.widgetAppearance.secondaryColor}
+            fontFamily={config.widgetAppearance.fontFamily}
+            initialMessage={config.widgetAppearance.initialMessage}
+            avatarUrl={config.widgetAppearance.avatarUrl}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
 
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="include-intro"
-                      checked={config.responseFormatting.includeIntro}
-                      onCheckedChange={(checked) =>
+export default ConfigurationPanel;
