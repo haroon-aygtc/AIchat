@@ -217,7 +217,7 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
 
       toast({
         title: "Configuration created",
-        description: `"${name}" has been created successfully.`,
+        description: `"${newConfig.name}" has been created successfully.`,
         duration: 3000,
       });
     } catch (error) {
@@ -375,10 +375,12 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
   return (
     <div className="w-full h-full bg-background p-6">
       {isLoading && (
-        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-50">
-          <div className="flex flex-col items-center gap-2">
+        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-50 pointer-events-none">
+          <div className="flex flex-col items-center gap-2 pointer-events-auto bg-background/90 p-4 rounded-md shadow-md">
             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-            <p className="text-sm text-muted-foreground">Loading configuration...</p>
+            <p className="text-sm text-muted-foreground">
+              Loading configuration...
+            </p>
           </div>
         </div>
       )}
@@ -467,7 +469,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
             }
           }}
           onDuplicate={async (id) => {
-            const configToDuplicate = allConfigurations.find(c => c.id === id);
+            const configToDuplicate = allConfigurations.find(
+              (c) => c.id === id,
+            );
             if (configToDuplicate) {
               try {
                 const newName = `${configToDuplicate.name} (Copy)`;
@@ -477,7 +481,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                   widgetAppearance: { ...configToDuplicate.widgetAppearance },
                   knowledgeBase: { ...configToDuplicate.knowledgeBase },
                   aiModel: { ...configToDuplicate.aiModel },
-                  responseFormatting: { ...configToDuplicate.responseFormatting },
+                  responseFormatting: {
+                    ...configToDuplicate.responseFormatting,
+                  },
                 });
 
                 toast({
@@ -489,7 +495,8 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                 console.error("Error duplicating configuration:", error);
                 toast({
                   title: "Error duplicating configuration",
-                  description: "There was an error duplicating the configuration.",
+                  description:
+                    "There was an error duplicating the configuration.",
                   variant: "destructive",
                   duration: 3000,
                 });
@@ -529,13 +536,22 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
       )}
 
       <div className="flex h-full">
-        <div className={`flex-1 transition-all ${showPreviewPanel ? "pr-4" : ""}`}>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div
+          className={`flex-1 transition-all ${showPreviewPanel ? "pr-4" : ""}`}
+        >
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
             <TabsList className="grid grid-cols-6 gap-4 mb-6">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <TabsTrigger value="knowledge-base" className="flex items-center">
+                    <TabsTrigger
+                      value="knowledge-base"
+                      className="flex items-center"
+                    >
                       <Database className="mr-2 h-4 w-4" />
                       Knowledge Base
                     </TabsTrigger>
@@ -549,7 +565,10 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <TabsTrigger value="prompt-templates" className="flex items-center">
+                    <TabsTrigger
+                      value="prompt-templates"
+                      className="flex items-center"
+                    >
                       <MessageSquare className="mr-2 h-4 w-4" />
                       Prompt Templates
                     </TabsTrigger>
@@ -563,7 +582,10 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <TabsTrigger value="ai-models" className="flex items-center">
+                    <TabsTrigger
+                      value="ai-models"
+                      className="flex items-center"
+                    >
                       <Settings className="mr-2 h-4 w-4" />
                       AI Models
                     </TabsTrigger>
@@ -586,7 +608,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                     </TabsTrigger>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Create automated follow-up questions for conversations</p>
+                    <p>
+                      Create automated follow-up questions for conversations
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -594,7 +618,10 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <TabsTrigger value="widget-appearance" className="flex items-center">
+                    <TabsTrigger
+                      value="widget-appearance"
+                      className="flex items-center"
+                    >
                       <Palette className="mr-2 h-4 w-4" />
                       Widget Appearance
                     </TabsTrigger>
@@ -617,7 +644,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                     </TabsTrigger>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Configure how AI responses are structured and formatted</p>
+                    <p>
+                      Configure how AI responses are structured and formatted
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -643,9 +672,12 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                          <Label htmlFor="enable-kb">Enable Knowledge Base</Label>
+                          <Label htmlFor="enable-kb">
+                            Enable Knowledge Base
+                          </Label>
                           <p className="text-sm text-muted-foreground">
-                            Allow the AI to use your knowledge base for responses
+                            Allow the AI to use your knowledge base for
+                            responses
                           </p>
                         </div>
                         <Switch
@@ -665,14 +697,15 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                             Auto-inject Relevant Content
                           </Label>
                           <p className="text-sm text-muted-foreground">
-                            Automatically include relevant knowledge base content in
-                            AI responses
+                            Automatically include relevant knowledge base
+                            content in AI responses
                           </p>
                         </div>
                         <Switch
                           id="auto-inject"
-                          checked={config.knowledgeBase.autoInjectRelevantContent}
-
+                          checked={
+                            config.knowledgeBase.autoInjectRelevantContent
+                          }
                         />
                       </div>
                       <Separator />
@@ -680,7 +713,8 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                         <div className="space-y-0.5">
                           <Label htmlFor="cite-sources">Cite Sources</Label>
                           <p className="text-sm text-muted-foreground">
-                            Include citations when knowledge base content is used
+                            Include citations when knowledge base content is
+                            used
                           </p>
                         </div>
                         <Switch
@@ -710,7 +744,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                             min={0}
                             max={100}
                             step={5}
-                            value={[config.knowledgeBase.relevanceThreshold || 75]}
+                            value={[
+                              config.knowledgeBase.relevanceThreshold || 75,
+                            ]}
                             onValueChange={(value) =>
                               updateKnowledgeBaseConfig({
                                 relevanceThreshold: value[0],
@@ -724,7 +760,8 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Set the minimum relevance score for content to be included
+                          Set the minimum relevance score for content to be
+                          included
                         </p>
                       </div>
 
@@ -781,18 +818,21 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                           <div className="flex items-center gap-2">
                             {source.icon &&
                               (() => {
-                                const iconMap: Record<string, React.ReactNode> = {
-                                  FileText: <FileText className="h-4 w-4" />,
-                                  Database: <Database className="h-4 w-4" />,
-                                  HelpCircle: <HelpCircle className="h-4 w-4" />,
-                                  Code: <Code className="h-4 w-4" />,
-                                  MessageSquare: (
-                                    <MessageSquare className="h-4 w-4" />
-                                  ),
-                                  Presentation: (
-                                    <Presentation className="h-4 w-4" />
-                                  ),
-                                };
+                                const iconMap: Record<string, React.ReactNode> =
+                                  {
+                                    FileText: <FileText className="h-4 w-4" />,
+                                    Database: <Database className="h-4 w-4" />,
+                                    HelpCircle: (
+                                      <HelpCircle className="h-4 w-4" />
+                                    ),
+                                    Code: <Code className="h-4 w-4" />,
+                                    MessageSquare: (
+                                      <MessageSquare className="h-4 w-4" />
+                                    ),
+                                    Presentation: (
+                                      <Presentation className="h-4 w-4" />
+                                    ),
+                                  };
                                 return (
                                   iconMap[source.icon] || (
                                     <FileText className="h-4 w-4" />
@@ -882,9 +922,14 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                             >
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <h3 className="font-medium">{template.name}</h3>
+                                  <h3 className="font-medium">
+                                    {template.name}
+                                  </h3>
                                   <div className="flex items-center gap-2 mt-1">
-                                    <Badge variant="outline" className="text-xs">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
                                       {template.category}
                                     </Badge>
                                     {template.isDefault && (
@@ -938,7 +983,8 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                               No templates found
                             </div>
                             <p className="text-sm text-muted-foreground">
-                              Try a different search term or create a new template
+                              Try a different search term or create a new
+                              template
                             </p>
                           </div>
                         )}
@@ -954,8 +1000,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                         <div className="flex justify-between items-center">
                           <CardTitle>
                             {
-                              promptTemplates.find((t) => t.id === selectedTemplate)
-                                ?.name
+                              promptTemplates.find(
+                                (t) => t.id === selectedTemplate,
+                              )?.name
                             }
                           </CardTitle>
                           <div className="flex gap-2">
@@ -1003,7 +1050,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                               Template Information
                             </h3>
                             <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div className="text-muted-foreground">Category:</div>
+                              <div className="text-muted-foreground">
+                                Category:
+                              </div>
                               <div>
                                 {
                                   promptTemplates.find(
@@ -1033,7 +1082,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                           </div>
 
                           <div className="space-y-2">
-                            <h3 className="text-sm font-medium">Example Usage</h3>
+                            <h3 className="text-sm font-medium">
+                              Example Usage
+                            </h3>
                             <div className="bg-muted/20 p-4 rounded-md">
                               <div className="space-y-4">
                                 <div>
@@ -1079,7 +1130,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-4">
                             <div className="space-y-2">
-                              <Label htmlFor="template-name">Template Title</Label>
+                              <Label htmlFor="template-name">
+                                Template Title
+                              </Label>
                               <Input
                                 id="template-name"
                                 value={editingTemplate.name}
@@ -1112,7 +1165,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                             </div>
 
                             <div className="space-y-2">
-                              <Label htmlFor="template-category">Category</Label>
+                              <Label htmlFor="template-category">
+                                Category
+                              </Label>
                               <Select
                                 value={editingTemplate.category}
                                 onValueChange={(value) =>
@@ -1126,11 +1181,15 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                                   <SelectValue placeholder="Select a category" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="General">General</SelectItem>
+                                  <SelectItem value="General">
+                                    General
+                                  </SelectItem>
                                   <SelectItem value="Customer Service">
                                     Customer Service
                                   </SelectItem>
-                                  <SelectItem value="Support">Support</SelectItem>
+                                  <SelectItem value="Support">
+                                    Support
+                                  </SelectItem>
                                   <SelectItem value="Sales">Sales</SelectItem>
                                   <SelectItem value="Marketing">
                                     Marketing
@@ -1142,10 +1201,17 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                             <div className="space-y-2">
                               <Label>Tags</Label>
                               <div className="flex flex-wrap gap-2 p-2 border rounded-md">
-                                <Badge variant="secondary" className="px-2 py-1">
-                                  AI <X className="h-3 w-3 ml-1 cursor-pointer" />
+                                <Badge
+                                  variant="secondary"
+                                  className="px-2 py-1"
+                                >
+                                  AI{" "}
+                                  <X className="h-3 w-3 ml-1 cursor-pointer" />
                                 </Badge>
-                                <Badge variant="secondary" className="px-2 py-1">
+                                <Badge
+                                  variant="secondary"
+                                  className="px-2 py-1"
+                                >
                                   Customer Support{" "}
                                   <X className="h-3 w-3 ml-1 cursor-pointer" />
                                 </Badge>
@@ -1335,7 +1401,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                                 id="test-prompt-input"
                                 placeholder="Type a sample user query to test this template..."
                                 value={testPromptInput}
-                                onChange={(e) => setTestPromptInput(e.target.value)}
+                                onChange={(e) =>
+                                  setTestPromptInput(e.target.value)
+                                }
                                 rows={2}
                                 disabled={isTestingPrompt}
                               />
@@ -1389,8 +1457,8 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                               ) : (
                                 <div className="text-sm text-muted-foreground italic text-center h-[150px] flex items-center justify-center">
                                   <p>
-                                    Enter a test query and click "Test This Prompt"
-                                    to see a preview
+                                    Enter a test query and click "Test This
+                                    Prompt" to see a preview
                                   </p>
                                 </div>
                               )}
@@ -1467,7 +1535,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="gemini">Google Gemini</SelectItem>
-                        <SelectItem value="huggingface">Hugging Face</SelectItem>
+                        <SelectItem value="huggingface">
+                          Hugging Face
+                        </SelectItem>
                         <SelectItem value="custom">Custom Model</SelectItem>
                       </SelectContent>
                     </Select>
@@ -1637,11 +1707,13 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                     <div className="flex items-start gap-2">
                       <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
                       <div>
-                        <h4 className="text-sm font-medium">Model Usage Note</h4>
+                        <h4 className="text-sm font-medium">
+                          Model Usage Note
+                        </h4>
                         <p className="text-sm text-muted-foreground">
                           API usage may incur costs depending on your plan. Make
-                          sure to check the pricing details for your selected model
-                          provider.
+                          sure to check the pricing details for your selected
+                          model provider.
                         </p>
                       </div>
                     </div>
@@ -1686,7 +1758,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="widget-subtitle">Widget Subtitle</Label>
+                          <Label htmlFor="widget-subtitle">
+                            Widget Subtitle
+                          </Label>
                           <Input
                             id="widget-subtitle"
                             value={config.widgetAppearance.subtitle}
@@ -1727,7 +1801,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="secondary-color">Secondary Color</Label>
+                          <Label htmlFor="secondary-color">
+                            Secondary Color
+                          </Label>
                           <div className="flex items-center space-x-2">
                             <Input
                               id="secondary-color"
@@ -1770,7 +1846,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                             <SelectContent>
                               <SelectItem value="Inter">Inter</SelectItem>
                               <SelectItem value="Roboto">Roboto</SelectItem>
-                              <SelectItem value="Open Sans">Open Sans</SelectItem>
+                              <SelectItem value="Open Sans">
+                                Open Sans
+                              </SelectItem>
                               <SelectItem value="Lato">Lato</SelectItem>
                               <SelectItem value="Poppins">Poppins</SelectItem>
                             </SelectContent>
@@ -1778,7 +1856,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="widget-position">Widget Position</Label>
+                          <Label htmlFor="widget-position">
+                            Widget Position
+                          </Label>
                           <Select
                             value={config.widgetAppearance.position}
                             onValueChange={(value: any) =>
@@ -1797,7 +1877,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                               <SelectItem value="bottom-left">
                                 Bottom Left
                               </SelectItem>
-                              <SelectItem value="top-right">Top Right</SelectItem>
+                              <SelectItem value="top-right">
+                                Top Right
+                              </SelectItem>
                               <SelectItem value="top-left">Top Left</SelectItem>
                             </SelectContent>
                           </Select>
@@ -1834,8 +1916,8 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                           rows={3}
                         />
                         <p className="text-xs text-muted-foreground">
-                          This message will be displayed when a user first opens the
-                          chat
+                          This message will be displayed when a user first opens
+                          the chat
                         </p>
                       </div>
                     </CardContent>
@@ -1871,7 +1953,9 @@ const ConfigurationPanel = ({ onSave = () => { } }: ConfigurationPanelProps) => 
                         </p>
                         <Button
                           variant="outline"
-                          onClick={() => setShowWidgetPreview(!showWidgetPreview)}
+                          onClick={() =>
+                            setShowWidgetPreview(!showWidgetPreview)
+                          }
                         >
                           {showWidgetPreview ? "Hide Preview" : "Show Preview"}
                         </Button>
