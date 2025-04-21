@@ -21,6 +21,7 @@ import {
   LogOut,
   Clock,
   Shield,
+  Layers,
 } from "lucide-react";
 import ConfigurationPanel from "@/components/admin/ConfigurationPanel";
 import KnowledgeBaseManager from "@/components/admin/KnowledgeBaseManager";
@@ -28,6 +29,7 @@ import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
 import UserManagement from "@/components/admin/UserManagement";
 import SessionLogs from "@/components/admin/SessionLogs";
 import AccessControl from "@/components/admin/AccessControl";
+import WidgetBuilder from "@/components/admin/WidgetBuilder";
 
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState("configuration");
@@ -93,6 +95,14 @@ const AdminPanel = () => {
             Analytics
           </Button>
           <Button
+            variant={activeTab === "widget-builder" ? "secondary" : "ghost"}
+            className="w-full justify-start"
+            onClick={() => setActiveTab("widget-builder")}
+          >
+            <Layers className="mr-2 h-4 w-4" />
+            Widget Builder
+          </Button>
+          <Button
             variant={activeTab === "users" ? "secondary" : "ghost"}
             className="w-full justify-start"
             onClick={() => setActiveTab("users")}
@@ -129,6 +139,7 @@ const AdminPanel = () => {
               {activeTab === "models" && "AI Models"}
               {activeTab === "appearance" && "Widget Appearance"}
               {activeTab === "analytics" && "Analytics"}
+              {activeTab === "widget-builder" && "Widget Builder"}
               {activeTab === "users" && "User Management"}
             </h2>
             <div className="flex items-center gap-4">
@@ -270,6 +281,15 @@ const AdminPanel = () => {
           )}
 
           {activeTab === "analytics" && <AnalyticsDashboard />}
+
+          {activeTab === "widget-builder" && (
+            <WidgetBuilder
+              onSave={(widgetConfig) => {
+                console.log("Widget configuration saved:", widgetConfig);
+                // In a real implementation, this would save to the backend
+              }}
+            />
+          )}
 
           {activeTab === "users" && <UserManagement />}
         </main>
