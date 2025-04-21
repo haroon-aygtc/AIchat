@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useConfig } from "@/context/ConfigContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,6 +80,7 @@ interface WidgetBuilderProps {
 
 const WidgetBuilder = ({ onSave = () => {} }: WidgetBuilderProps) => {
   const { toast } = useToast();
+  const { config, updateWidgetAppearance, isLoading } = useConfig();
   const [activeTab, setActiveTab] = useState("layout");
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const [widgets, setWidgets] = useState<any[]>([
@@ -232,19 +234,34 @@ const WidgetBuilder = ({ onSave = () => {} }: WidgetBuilderProps) => {
     setWidgets(updatedWidgets);
   };
 
-  const handleSaveLayout = () => {
-    // In a real implementation, this would save the layout configuration
-    toast({
-      title: "Layout saved",
-      description: "Your dashboard layout has been saved successfully.",
-      duration: 3000,
-    });
-
-    if (onSave) {
-      onSave({
+  const handleSaveLayout = async () => {
+    try {
+      // Save the widget configuration to the context
+      const widgetConfig = {
         widgets,
         layoutType,
         lastSaved: new Date(),
+      };
+
+      // Update the widget appearance in the context
+      await updateWidgetAppearance(widgetConfig);
+
+      toast({
+        title: "Layout saved",
+        description: "Your dashboard layout has been saved successfully.",
+        duration: 3000,
+      });
+
+      if (onSave) {
+        onSave(widgetConfig);
+      }
+    } catch (error) {
+      console.error("Error saving widget configuration:", error);
+      toast({
+        title: "Save failed",
+        description: "There was an error saving your dashboard layout.",
+        variant: "destructive",
+        duration: 3000,
       });
     }
   };
@@ -329,8 +346,23 @@ const WidgetBuilder = ({ onSave = () => {} }: WidgetBuilderProps) => {
     ? widgets.find((w) => w.id === selectedWidget)
     : null;
 
+  // Load saved widget configuration from context when component mounts
+  useEffect(() => {
+    if (config.widgetAppearance && config.widgetAppearance.widgets) {
+      setWidgets(config.widgetAppearance.widgets);
+      if (config.widgetAppearance.layoutType) {
+        setLayoutType(config.widgetAppearance.layoutType);
+      }
+    }
+  }, [config.widgetAppearance]);
+
   return (
     <div className="w-full h-full bg-background">
+      {isLoading && (
+        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-50">
+          <div className="text-lg">Loading widget configuration...</div>
+        </div>
+      )}
       <div className="flex h-full">
         {/* Left Panel - Widget Library */}
         <div className="w-64 border-r p-4 flex flex-col h-full">

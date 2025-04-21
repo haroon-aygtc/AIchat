@@ -5,6 +5,7 @@ import routes from "tempo-routes";
 
 // Lazy load admin routes for better performance
 const AdminRoute = lazy(() => import("./pages/AdminRoute"));
+const WidgetBuilder = lazy(() => import("./components/admin/WidgetBuilder"));
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/admin" element={<AdminRoute />} />
+          <Route path="/widget-builder" element={<WidgetBuilder />} />
           {/* Add additional routes here */}
 
           {/* Allow Tempo to capture routes before the catchall */}
