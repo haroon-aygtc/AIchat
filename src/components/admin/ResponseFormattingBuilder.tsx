@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
+import { motion } from "framer-motion";
 import {
   Heading1,
   Heading2,
@@ -123,6 +124,11 @@ const ResponseFormattingBuilder = ({
     fontFamily: "Inter",
   });
 
+  // Drag and drop functionality
+  const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
+  const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null);
+  const dragTimeoutRef = useRef<number | null>(null);
+
   const handleAddBlock = (type: string) => {
     const newBlock: FormattingBlock = {
       id: `block-${Date.now()}`,
@@ -211,6 +217,82 @@ const ResponseFormattingBuilder = ({
     ];
 
     setBlocks(updatedBlocks);
+  };
+
+  const handleDragStart = (id: string) => {
+    if (previewMode) return;
+    setDraggedBlockId(id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (previewMode || !draggedBlockId || draggedBlockId === id) return;
+    setDragOverBlockId(id);
+
+    // Auto-scroll functionality
+    const container = e.currentTarget.parentElement;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const scrollThreshold = 40; // pixels from top/bottom to trigger scroll
+
+    if (e.clientY - containerRect.top < scrollThreshold) {
+      // Near the top, scroll up
+      if (dragTimeoutRef.current) window.clearTimeout(dragTimeoutRef.current);
+      dragTimeoutRef.current = window.setTimeout(() => {
+        container.scrollBy({ top: -20, behavior: "smooth" });
+        dragTimeoutRef.current = null;
+      }, 100);
+    } else if (containerRect.bottom - e.clientY < scrollThreshold) {
+      // Near the bottom, scroll down
+      if (dragTimeoutRef.current) window.clearTimeout(dragTimeoutRef.current);
+      dragTimeoutRef.current = window.setTimeout(() => {
+        container.scrollBy({ top: 20, behavior: "smooth" });
+        dragTimeoutRef.current = null;
+      }, 100);
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (
+      previewMode ||
+      !draggedBlockId ||
+      !dragOverBlockId ||
+      draggedBlockId === dragOverBlockId
+    ) {
+      setDraggedBlockId(null);
+      setDragOverBlockId(null);
+      return;
+    }
+
+    const draggedIndex = blocks.findIndex(
+      (block) => block.id === draggedBlockId,
+    );
+    const dropIndex = blocks.findIndex((block) => block.id === dragOverBlockId);
+
+    if (draggedIndex !== -1 && dropIndex !== -1) {
+      const updatedBlocks = [...blocks];
+      const [movedBlock] = updatedBlocks.splice(draggedIndex, 1);
+      updatedBlocks.splice(dropIndex, 0, movedBlock);
+      setBlocks(updatedBlocks);
+
+      toast({
+        title: "Block moved",
+        description: "The block has been repositioned in your response format.",
+        duration: 2000,
+      });
+    }
+
+    setDraggedBlockId(null);
+    setDragOverBlockId(null);
+    if (dragTimeoutRef.current) {
+      window.clearTimeout(dragTimeoutRef.current);
+      dragTimeoutRef.current = null;
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverBlockId(null);
   };
 
   const handleUpdateBlock = (id: string, updates: Partial<FormattingBlock>) => {
@@ -358,17 +440,30 @@ const ResponseFormattingBuilder = ({
                 />
               </div>
             </div>
-            <div className="divide-y">
+            <div
+              className="divide-y"
+              style={{ minHeight: blocks.length ? "auto" : "100px" }}
+            >
               {blocks.map((block) => (
-                <div
+                <motion.div
                   key={block.id}
-                  className={`p-3 ${!previewMode ? "cursor-pointer hover:bg-muted/50" : ""} ${selectedBlockId === block.id && !previewMode ? "bg-primary/5" : ""} ${!block.isVisible ? "opacity-50" : ""}`}
+                  className={`p-3 ${!previewMode ? "cursor-pointer hover:bg-muted/50" : ""} ${selectedBlockId === block.id && !previewMode ? "bg-primary/5" : ""} ${!block.isVisible ? "opacity-50" : ""} ${dragOverBlockId === block.id ? "border-2 border-primary border-dashed" : ""} ${draggedBlockId === block.id ? "opacity-60 bg-muted" : ""}`}
                   onClick={() => !previewMode && setSelectedBlockId(block.id)}
+                  draggable={!previewMode}
+                  onDragStart={() => handleDragStart(block.id)}
+                  onDragOver={(e) => handleDragOver(e, block.id)}
+                  onDragEnd={handleDragEnd}
+                  onDragLeave={handleDragLeave}
+                  animate={{
+                    y: draggedBlockId === block.id ? 5 : 0,
+                    scale: draggedBlockId === block.id ? 0.98 : 1,
+                  }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                   {!previewMode ? (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="text-muted-foreground">
+                        <div className="text-muted-foreground cursor-grab active:cursor-grabbing">
                           <GripVertical className="h-4 w-4" />
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -501,7 +596,7 @@ const ResponseFormattingBuilder = ({
                       )}
                     </div>
                   )}
-                </div>
+                </motion.div>
               ))}
             </div>
 

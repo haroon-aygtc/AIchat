@@ -39,6 +39,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import ConfigurationSelector from "@/components/admin/ConfigurationSelector";
+import OnboardingHelp from "@/components/admin/OnboardingHelp";
+import PreviewPanel from "@/components/admin/PreviewPanel";
 import {
   Save,
   Plus,
@@ -83,7 +86,7 @@ import {
   PanelRight,
   PanelLeft,
 } from "lucide-react";
-import { useConfig } from "@/context/ConfigContext";
+import { useConfig } from "../context/ConfigContext";
 import PromptTemplateService, {
   PromptTemplate,
 } from "@/services/promptTemplateService";
@@ -114,15 +117,11 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
     createConfiguration,
     deleteConfiguration,
     setActiveConfiguration,
+    isLoading,
   } = useConfig();
   const [activeTab, setActiveTab] = useState("prompt-templates");
   const [showConfigSelector, setShowConfigSelector] = useState(false);
-  const [newConfigName, setNewConfigName] = useState("");
-  const [newConfigDescription, setNewConfigDescription] = useState("");
   const [showPreviewPanel, setShowPreviewPanel] = useState(false);
-  const [previewPrompt, setPreviewPrompt] = useState("");
-  const [previewResponse, setPreviewResponse] = useState<AIResponse | null>(null);
-  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [showWidgetPreview, setShowWidgetPreview] = useState(false);
@@ -154,38 +153,48 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
     }
   }, []);
 
-  const handleSaveConfig = () => {
-    // Save all configuration
-    updateConfig({
-      knowledgeBase: config.knowledgeBase,
-      aiModel: {
-        ...config.aiModel,
-        // Add API keys if provided
-        ...(apiKeys.gemini && config.aiModel.modelType === "gemini"
-          ? { apiKey: apiKeys.gemini }
-          : {}),
-        ...(apiKeys.huggingface && config.aiModel.modelType === "huggingface"
-          ? { apiKey: apiKeys.huggingface }
-          : {}),
-      },
-      widgetAppearance: config.widgetAppearance,
-      responseFormatting: config.responseFormatting,
-      updatedAt: new Date(),
-    });
+  const handleSaveConfig = async () => {
+    try {
+      // Save all configuration
+      await updateConfig({
+        knowledgeBase: config.knowledgeBase,
+        aiModel: {
+          ...config.aiModel,
+          // Add API keys if provided
+          ...(apiKeys.gemini && config.aiModel.modelType === "gemini"
+            ? { apiKey: apiKeys.gemini }
+            : {}),
+          ...(apiKeys.huggingface && config.aiModel.modelType === "huggingface"
+            ? { apiKey: apiKeys.huggingface }
+            : {}),
+        },
+        widgetAppearance: config.widgetAppearance,
+        responseFormatting: config.responseFormatting,
+        updatedAt: new Date(),
+      });
 
-    toast({
-      title: "Configuration saved",
-      description: "Your changes have been applied successfully.",
-      duration: 3000,
-    });
+      toast({
+        title: "Configuration saved",
+        description: "Your changes have been applied successfully.",
+        duration: 3000,
+      });
 
-    if (onSave) {
-      onSave(config);
+      if (onSave) {
+        onSave(config);
+      }
+    } catch (error) {
+      console.error("Error saving configuration:", error);
+      toast({
+        title: "Error saving configuration",
+        description: "There was an error saving your configuration.",
+        variant: "destructive",
+        duration: 3000,
+      });
     }
   };
   
-  const handleCreateNewConfig = () => {
-    if (!newConfigName.trim()) {
+  const handleCreateNewConfig = async (name: string, description: string) => {
+    if (!name.trim()) {
       toast({
         title: "Name required",
         description: "Please provide a name for your configuration.",
@@ -195,92 +204,30 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
       return;
     }
     
-    const newConfig = createConfiguration({
-      name: newConfigName,
-      description: newConfigDescription,
-      // Clone current settings
-      widgetAppearance: { ...config.widgetAppearance },
-      knowledgeBase: { ...config.knowledgeBase },
-      aiModel: { ...config.aiModel },
-      responseFormatting: { ...config.responseFormatting },
-    });
-    
-    setNewConfigName("");
-    setNewConfigDescription("");
-    
-    toast({
-      title: "Configuration created",
-      description: `"${newConfig.name}" has been created successfully.`,
-      duration: 3000,
-    });
-  };
-  
-  const handleDeleteConfig = (id: string) => {
-    const result = deleteConfiguration(id);
-    
-    if (result) {
-      toast({
-        title: "Configuration deleted",
-        description: "The configuration has been removed.",
-        duration: 3000,
-      });
-    } else {
-      toast({
-        title: "Cannot delete configuration",
-        description: "The default configuration cannot be deleted.",
-        variant: "destructive",
-        duration: 3000,
-      });
-    }
-  };
-  
-  const handleActivateConfig = (id: string) => {
-    const result = setActiveConfiguration(id);
-    
-    if (result) {
-      toast({
-        title: "Configuration activated",
-        description: "The selected configuration is now active.",
-        duration: 3000,
-      });
-    }
-  };
-  
-  const handleGeneratePreview = async () => {
-    if (!previewPrompt.trim()) {
-      toast({
-        title: "Prompt required",
-        description: "Please enter a prompt to generate a preview.",
-        variant: "destructive",
-        duration: 3000,
-      });
-      return;
-    }
-    
-    setIsGeneratingPreview(true);
-    setPreviewResponse(null);
-    
     try {
-      // Configure AI service with current settings
-      aiService.setConfig(config.aiModel);
-      
-      // Generate response
-      const response = await aiService.generateResponse(previewPrompt, {
-        includeReasoning: true,
-        includeSources: config.knowledgeBase.enableKnowledgeBase,
+      const newConfig = await createConfiguration({
+        name: name,
+        description: description,
+        // Clone current settings
+        widgetAppearance: { ...config.widgetAppearance },
+        knowledgeBase: { ...config.knowledgeBase },
+        aiModel: { ...config.aiModel },
+        responseFormatting: { ...config.responseFormatting },
       });
       
-      setPreviewResponse(response);
-    } catch (error) {
-      console.error("Error generating preview:", error);
       toast({
-        title: "Preview generation failed",
-        description: "There was an error generating the preview.",
+        title: "Configuration created",
+        description: `"${name}" has been created successfully.`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error("Error creating configuration:", error);
+      toast({
+        title: "Error creating configuration",
+        description: "There was an error creating your configuration.",
         variant: "destructive",
         duration: 3000,
       });
-    } finally {
-      setIsGeneratingPreview(false);
     }
   };
 
@@ -428,6 +375,14 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
 
   return (
     <div className="w-full h-full bg-background p-6">
+      {isLoading && (
+        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-50">
+          <div className="flex flex-col items-center gap-2">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+            <p className="text-sm text-muted-foreground">Loading configuration...</p>
+          </div>
+        </div>
+      )}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Configuration Panel</h1>
@@ -451,6 +406,11 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          
+          <OnboardingHelp 
+            open={showOnboarding} 
+            onOpenChange={setShowOnboarding} 
+          />
           
           <Button
             variant="outline"
@@ -484,180 +444,92 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
       
       {/* Configuration Selector */}
       {showConfigSelector && (
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <div className="flex justify-between items-center">
-              <CardTitle>AI Configurations</CardTitle>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Configuration
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New Configuration</DialogTitle>
-                    <DialogDescription>
-                      Create a new AI configuration based on current settings.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="config-name">Configuration Name</Label>
-                      <Input
-                        id="config-name"
-                        placeholder="E.g., Customer Support Bot"
-                        value={newConfigName}
-                        onChange={(e) => setNewConfigName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="config-description">Description</Label>
-                      <Textarea
-                        id="config-description"
-                        placeholder="Describe the purpose of this configuration"
-                        value={newConfigDescription}
-                        onChange={(e) => setNewConfigDescription(e.target.value)}
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => {
-                      setNewConfigName("");
-                      setNewConfigDescription("");
-                    }}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleCreateNewConfig}>
-                      Create Configuration
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-            <CardDescription>
-              Switch between different AI configurations for various use cases
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {allConfigurations.map((configItem) => (
-                <div
-                  key={configItem.id}
-                  className={`border rounded-lg p-4 ${configItem.isActive ? "border-primary bg-primary/5" : ""}`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-medium flex items-center gap-2">
-                        {configItem.name}
-                        {configItem.isActive && (
-                          <Badge variant="outline" className="bg-primary/20 text-primary border-primary/10">
-                            Active
-                          </Badge>
-                        )}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {configItem.description}
-                      </p>
-                    </div>
-                    <div className="flex gap-1">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => {
-                                // Clone configuration logic would go here
-                                const newName = `${configItem.name} (Copy)`;
-                                createConfiguration({
-                                  name: newName,
-                                  description: configItem.description,
-                                  widgetAppearance: { ...configItem.widgetAppearance },
-                                  knowledgeBase: { ...configItem.knowledgeBase },
-                                  aiModel: { ...configItem.aiModel },
-                                  responseFormatting: { ...configItem.responseFormatting },
-                                });
-                                
-                                toast({
-                                  title: "Configuration duplicated",
-                                  description: `"${newName}" has been created.`,
-                                  duration: 3000,
-                                });
-                              }}
-                            >
-                              <CopyIcon className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Duplicate configuration</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      
-                      {!configItem.isActive && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive"
-                                onClick={() => handleDeleteConfig(configItem.id || "")}
-                                disabled={configItem.id === "default"}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Delete configuration</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-4 text-xs text-muted-foreground">
-                    <div>Model:</div>
-                    <div className="font-medium text-foreground">
-                      {configItem.aiModel.modelType === "gemini" ? "Google Gemini" : 
-                       configItem.aiModel.modelType === "huggingface" ? "Hugging Face" : "Custom Model"}
-                    </div>
-                    
-                    <div>Knowledge Base:</div>
-                    <div className="font-medium text-foreground">
-                      {configItem.knowledgeBase.enableKnowledgeBase ? "Enabled" : "Disabled"}
-                    </div>
-                    
-                    <div>Last Updated:</div>
-                    <div className="font-medium text-foreground">
-                      {configItem.updatedAt ? new Date(configItem.updatedAt).toLocaleDateString() : "Never"}
-                    </div>
-                  </div>
-                  
-                  {!configItem.isActive && (
-                    <Button
-                      className="w-full mt-4"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleActivateConfig(configItem.id || "")}
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Activate Configuration
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <ConfigurationSelector
+          configurations={allConfigurations}
+          activeConfigId={config.id || ""}
+          onActivate={async (id) => {
+            try {
+              const result = await setActiveConfiguration(id);
+              if (result) {
+                toast({
+                  title: "Configuration activated",
+                  description: "The selected configuration is now active.",
+                  duration: 3000,
+                });
+              }
+            } catch (error) {
+              console.error("Error activating configuration:", error);
+              toast({
+                title: "Error activating configuration",
+                description: "There was an error activating the configuration.",
+                variant: "destructive",
+                duration: 3000,
+              });
+            }
+          }}
+          onDuplicate={async (id) => {
+            const configToDuplicate = allConfigurations.find(c => c.id === id);
+            if (configToDuplicate) {
+              try {
+                const newName = `${configToDuplicate.name} (Copy)`;
+                await createConfiguration({
+                  name: newName,
+                  description: configToDuplicate.description,
+                  widgetAppearance: { ...configToDuplicate.widgetAppearance },
+                  knowledgeBase: { ...configToDuplicate.knowledgeBase },
+                  aiModel: { ...configToDuplicate.aiModel },
+                  responseFormatting: { ...configToDuplicate.responseFormatting },
+                });
+                
+                toast({
+                  title: "Configuration duplicated",
+                  description: `"${newName}" has been created.`,
+                  duration: 3000,
+                });
+              } catch (error) {
+                console.error("Error duplicating configuration:", error);
+                toast({
+                  title: "Error duplicating configuration",
+                  description: "There was an error duplicating the configuration.",
+                  variant: "destructive",
+                  duration: 3000,
+                });
+              }
+            }
+          }}
+          onDelete={async (id) => {
+            try {
+              const result = await deleteConfiguration(id);
+              
+              if (result) {
+                toast({
+                  title: "Configuration deleted",
+                  description: "The configuration has been removed.",
+                  duration: 3000,
+                });
+              } else {
+                toast({
+                  title: "Cannot delete configuration",
+                  description: "The default configuration cannot be deleted.",
+                  variant: "destructive",
+                  duration: 3000,
+                });
+              }
+            } catch (error) {
+              console.error("Error deleting configuration:", error);
+              toast({
+                title: "Error deleting configuration",
+                description: "There was an error deleting the configuration.",
+                variant: "destructive",
+                duration: 3000,
+              });
+            }
+          }}
+          onCreateNew={handleCreateNewConfig}
+        />
       )}
 
-      <div className="flex">
+      <div className="flex h-full">
         <div className={`flex-1 transition-all ${showPreviewPanel ? "pr-4" : ""}`}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid grid-cols-6 gap-4 mb-6">
@@ -2053,73 +1925,11 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
         
         {/* Preview Panel */}
         {showPreviewPanel && (
-          <div className="w-[400px] border-l pl-4 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Configuration Preview</h3>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowPreviewPanel(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            <div className="space-y-4 flex-1">
-              <div className="space-y-2">
-                <Label htmlFor="preview-prompt">Test Prompt</Label>
-                <Textarea
-                  id="preview-prompt"
-                  placeholder="Enter a prompt to test the current configuration..."
-                  value={previewPrompt}
-                  onChange={(e) => setPreviewPrompt(e.target.value)}
-                  rows={3}
-                  className="resize-none"
-                />
-              </div>
-              
-              <Button
-                onClick={handleGeneratePreview}
-                disabled={!previewPrompt.trim() || isGeneratingPreview}
-                className="w-full"
-              >
-                {isGeneratingPreview ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    Generate Response
-                  </>
-                )}
-              </Button>
-              
-              <Separator />
-              
-              <div className="flex-1 overflow-auto">
-                <div className="text-sm font-medium mb-2">Preview Result:</div>
-                
-                {isGeneratingPreview ? (
-                  <div className="flex items-center justify-center h-[200px]">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
-                      <p className="text-sm text-muted-foreground">Generating preview...</p>
-                    </div>
-                  </div>
-                ) : previewResponse ? (
-                  <div className="space-y-4">
-                    <div className="p-4 border rounded-md bg-muted/20">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-1.5">
-                          <Sparkles className="h-3.5 w-3.5 text-primary" />
-                          <span className="text-sm font-medium">Confidence Score:</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${previewResponse.confidenceScore >= 90 ? "bg-green-500" : previewResponse.confidenceScore >= 75 ? "bg
+          <PreviewPanel 
+            config={config} 
+            onClose={() => setShowPreviewPanel(false)} 
+          />
+        )}
     </div>
   );
 };

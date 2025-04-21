@@ -2,18 +2,21 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import ConfigurationService, {
   ChatSystemConfig,
 } from "../services/configurationService";
+import { defaultConfig } from "../mocks/data/configurations";
 
 interface ConfigContextType {
   config: ChatSystemConfig;
   allConfigurations: ChatSystemConfig[];
-  updateConfig: (newConfig: Partial<ChatSystemConfig>) => void;
-  updateWidgetAppearance: (newAppearance: any) => void;
-  updateAIModelConfig: (newConfig: any) => void;
-  updateKnowledgeBaseConfig: (newConfig: any) => void;
-  updateResponseFormattingConfig: (newConfig: any) => void;
-  createConfiguration: (config: Partial<ChatSystemConfig>) => ChatSystemConfig;
-  deleteConfiguration: (id: string) => boolean;
-  setActiveConfiguration: (id: string) => boolean;
+  updateConfig: (newConfig: Partial<ChatSystemConfig>) => Promise<void>;
+  updateWidgetAppearance: (newAppearance: any) => Promise<void>;
+  updateAIModelConfig: (newConfig: any) => Promise<void>;
+  updateKnowledgeBaseConfig: (newConfig: any) => Promise<void>;
+  updateResponseFormattingConfig: (newConfig: any) => Promise<void>;
+  createConfiguration: (
+    config: Partial<ChatSystemConfig>,
+  ) => Promise<ChatSystemConfig>;
+  deleteConfiguration: (id: string) => Promise<boolean>;
+  setActiveConfiguration: (id: string) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -22,88 +25,172 @@ const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [config, setConfig] = useState<ChatSystemConfig>(
-    ConfigurationService.getConfig(),
-  );
+  const [config, setConfig] = useState<ChatSystemConfig>(defaultConfig);
   const [allConfigurations, setAllConfigurations] = useState<
     ChatSystemConfig[]
-  >(ConfigurationService.getAllConfigurations());
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // In a real implementation, this would fetch from an API
-    setConfig(ConfigurationService.getConfig());
-    setAllConfigurations(ConfigurationService.getAllConfigurations());
-    setIsLoading(false);
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const activeConfig = await ConfigurationService.getConfig();
+        const configurations =
+          await ConfigurationService.getAllConfigurations();
+
+        setConfig(activeConfig);
+        setAllConfigurations(configurations);
+      } catch (error) {
+        console.error("Error fetching configurations:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const updateConfig = (newConfig: Partial<ChatSystemConfig>) => {
-    const updatedConfig = ConfigurationService.updateConfig(newConfig);
-    setConfig(updatedConfig);
-    setAllConfigurations(ConfigurationService.getAllConfigurations());
-  };
-
-  const updateWidgetAppearance = (newAppearance: any) => {
-    const updatedAppearance =
-      ConfigurationService.updateWidgetAppearance(newAppearance);
-    setConfig({
-      ...config,
-      widgetAppearance: updatedAppearance,
-    });
-    setAllConfigurations(ConfigurationService.getAllConfigurations());
-  };
-
-  const updateAIModelConfig = (newConfig: any) => {
-    const updatedConfig = ConfigurationService.updateAIModelConfig(newConfig);
-    setConfig({
-      ...config,
-      aiModel: updatedConfig,
-    });
-    setAllConfigurations(ConfigurationService.getAllConfigurations());
-  };
-
-  const updateKnowledgeBaseConfig = (newConfig: any) => {
-    const updatedConfig =
-      ConfigurationService.updateKnowledgeBaseConfig(newConfig);
-    setConfig({
-      ...config,
-      knowledgeBase: updatedConfig,
-    });
-    setAllConfigurations(ConfigurationService.getAllConfigurations());
-  };
-
-  const updateResponseFormattingConfig = (newConfig: any) => {
-    const updatedConfig =
-      ConfigurationService.updateResponseFormattingConfig(newConfig);
-    setConfig({
-      ...config,
-      responseFormatting: updatedConfig,
-    });
-    setAllConfigurations(ConfigurationService.getAllConfigurations());
-  };
-
-  const createConfiguration = (configData: Partial<ChatSystemConfig>) => {
-    const newConfig = ConfigurationService.createConfiguration(configData);
-    setAllConfigurations(ConfigurationService.getAllConfigurations());
-    return newConfig;
-  };
-
-  const deleteConfiguration = (id: string) => {
-    const result = ConfigurationService.deleteConfiguration(id);
-    if (result) {
-      setAllConfigurations(ConfigurationService.getAllConfigurations());
-      setConfig(ConfigurationService.getConfig());
+  const updateConfig = async (newConfig: Partial<ChatSystemConfig>) => {
+    try {
+      setIsLoading(true);
+      const updatedConfig = await ConfigurationService.updateConfig(newConfig);
+      setConfig(updatedConfig);
+      const configurations = await ConfigurationService.getAllConfigurations();
+      setAllConfigurations(configurations);
+    } catch (error) {
+      console.error("Error updating config:", error);
+    } finally {
+      setIsLoading(false);
     }
-    return result;
   };
 
-  const setActiveConfiguration = (id: string) => {
-    const result = ConfigurationService.setActiveConfiguration(id);
-    if (result) {
-      setConfig(ConfigurationService.getConfig());
-      setAllConfigurations(ConfigurationService.getAllConfigurations());
+  const updateWidgetAppearance = async (newAppearance: any) => {
+    try {
+      setIsLoading(true);
+      const updatedAppearance =
+        await ConfigurationService.updateWidgetAppearance(newAppearance);
+      setConfig({
+        ...config,
+        widgetAppearance: updatedAppearance,
+      });
+      const configurations = await ConfigurationService.getAllConfigurations();
+      setAllConfigurations(configurations);
+    } catch (error) {
+      console.error("Error updating widget appearance:", error);
+    } finally {
+      setIsLoading(false);
     }
-    return result;
+  };
+
+  const updateAIModelConfig = async (newConfig: any) => {
+    try {
+      setIsLoading(true);
+      const updatedConfig =
+        await ConfigurationService.updateAIModelConfig(newConfig);
+      setConfig({
+        ...config,
+        aiModel: updatedConfig,
+      });
+      const configurations = await ConfigurationService.getAllConfigurations();
+      setAllConfigurations(configurations);
+    } catch (error) {
+      console.error("Error updating AI model config:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateKnowledgeBaseConfig = async (newConfig: any) => {
+    try {
+      setIsLoading(true);
+      const updatedConfig =
+        await ConfigurationService.updateKnowledgeBaseConfig(newConfig);
+      setConfig({
+        ...config,
+        knowledgeBase: updatedConfig,
+      });
+      const configurations = await ConfigurationService.getAllConfigurations();
+      setAllConfigurations(configurations);
+    } catch (error) {
+      console.error("Error updating knowledge base config:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateResponseFormattingConfig = async (newConfig: any) => {
+    try {
+      setIsLoading(true);
+      const updatedConfig =
+        await ConfigurationService.updateResponseFormattingConfig(newConfig);
+      setConfig({
+        ...config,
+        responseFormatting: updatedConfig,
+      });
+      const configurations = await ConfigurationService.getAllConfigurations();
+      setAllConfigurations(configurations);
+    } catch (error) {
+      console.error("Error updating response formatting config:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createConfiguration = async (configData: Partial<ChatSystemConfig>) => {
+    try {
+      setIsLoading(true);
+      const newConfig =
+        await ConfigurationService.createConfiguration(configData);
+      const configurations = await ConfigurationService.getAllConfigurations();
+      setAllConfigurations(configurations);
+      return newConfig;
+    } catch (error) {
+      console.error("Error creating configuration:", error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteConfiguration = async (id: string) => {
+    try {
+      setIsLoading(true);
+      const result = await ConfigurationService.deleteConfiguration(id);
+      if (result) {
+        const configurations =
+          await ConfigurationService.getAllConfigurations();
+        setAllConfigurations(configurations);
+        const activeConfig = await ConfigurationService.getConfig();
+        setConfig(activeConfig);
+      }
+      return result;
+    } catch (error) {
+      console.error("Error deleting configuration:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const setActiveConfiguration = async (id: string) => {
+    try {
+      setIsLoading(true);
+      const result = await ConfigurationService.setActiveConfiguration(id);
+      if (result) {
+        const activeConfig = await ConfigurationService.getConfig();
+        setConfig(activeConfig);
+        const configurations =
+          await ConfigurationService.getAllConfigurations();
+        setAllConfigurations(configurations);
+      }
+      return result;
+    } catch (error) {
+      console.error("Error setting active configuration:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

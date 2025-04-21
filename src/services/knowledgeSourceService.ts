@@ -1,5 +1,6 @@
 // Knowledge Source Service
 // Manages available knowledge sources and their selection state
+import { knowledgeSourceApi } from "../mocks/api";
 
 export interface KnowledgeSource {
   id: string;

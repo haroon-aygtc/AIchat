@@ -1,6 +1,7 @@
 // Configuration Service for managing chat widget and AI settings
-
+import { configApi } from "../mocks/api";
 import { AIModelConfig } from "./aiService";
+import { defaultConfig } from "../mocks/data/configurations";
 
 export interface WidgetAppearance {
   primaryColor: string;
@@ -50,245 +51,171 @@ export interface ChatSystemConfig {
   responseFormatting: ResponseFormattingConfig;
 }
 
-// Default configuration
-const defaultConfig: ChatSystemConfig = {
-  id: "default",
-  name: "Default Configuration",
-  description: "The default AI assistant configuration",
-  isActive: true,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  widgetAppearance: {
-    primaryColor: "#4f46e5",
-    secondaryColor: "#ffffff",
-    fontFamily: "Inter",
-    position: "bottom-right",
-    initialMessage: "Hello! How can I help you today?",
-    title: "AI Assistant",
-    subtitle: "Ask me anything!",
-    avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=aiassistant",
-  },
-  knowledgeBase: {
-    enableKnowledgeBase: true,
-    autoInjectRelevantContent: true,
-    citeSources: true,
-    relevanceThreshold: 75,
-    maxSources: 3,
-  },
-  aiModel: {
-    modelType: "gemini",
-    temperature: 0.7,
-    maxTokens: 1000,
-    topP: 0.9,
-  },
-  responseFormatting: {
-    enableFormatting: true,
-    includeTitle: true,
-    includeIntro: true,
-    includeContentBlocks: true,
-    includeFAQ: false,
-    includeActions: true,
-    includeDisclaimer: false,
-    defaultDisclaimer:
-      "This information is provided for general guidance only.",
-    headingStyle: "default",
-    contentStyle: "paragraphs",
-    maxLength: 500,
-  },
-};
-
-// Saved configurations
-const savedConfigurations: ChatSystemConfig[] = [
-  {
-    ...defaultConfig,
-    id: "default",
-    name: "Default Configuration",
-    description: "The default AI assistant configuration",
-    isActive: true,
-  },
-  {
-    ...defaultConfig,
-    id: "customer-support",
-    name: "Customer Support",
-    description: "Optimized for customer support interactions",
-    isActive: false,
-    aiModel: {
-      modelType: "gemini",
-      temperature: 0.5,
-      maxTokens: 800,
-      topP: 0.95,
-    },
-    responseFormatting: {
-      enableFormatting: true,
-      includeTitle: false,
-      includeIntro: true,
-      includeContentBlocks: true,
-      includeFAQ: true,
-      includeActions: true,
-      includeDisclaimer: true,
-      defaultDisclaimer:
-        "For additional assistance, please contact our support team.",
-      headingStyle: "question",
-      contentStyle: "steps",
-      maxLength: 600,
-    },
-  },
-  {
-    ...defaultConfig,
-    id: "sales-assistant",
-    name: "Sales Assistant",
-    description: "Configured for product inquiries and sales",
-    isActive: false,
-    widgetAppearance: {
-      primaryColor: "#10b981",
-      secondaryColor: "#ffffff",
-      fontFamily: "Poppins",
-      position: "bottom-right",
-      initialMessage:
-        "Hello! I can help you find the perfect product for your needs. What are you looking for today?",
-      title: "Sales Assistant",
-      subtitle: "Product recommendations & more",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=sales",
-    },
-    aiModel: {
-      modelType: "gemini",
-      temperature: 0.8,
-      maxTokens: 1200,
-      topP: 0.9,
-    },
-  },
-];
+// Cache for active configuration
+let activeConfigCache: ChatSystemConfig | null = null;
 
 // Get the current configuration
-const getConfig = (): ChatSystemConfig => {
-  // In a real implementation, this would fetch from a database or API
-  const activeConfig =
-    savedConfigurations.find((config) => config.isActive) ||
-    savedConfigurations[0];
-  return { ...activeConfig };
+const getConfig = async (): Promise<ChatSystemConfig> => {
+  if (!activeConfigCache) {
+    activeConfigCache = await configApi.getActiveConfiguration();
+  }
+  return { ...activeConfigCache };
 };
 
 // Get all saved configurations
-const getAllConfigurations = (): ChatSystemConfig[] => {
-  return [...savedConfigurations];
+const getAllConfigurations = async (): Promise<ChatSystemConfig[]> => {
+  return await configApi.getAllConfigurations();
 };
 
 // Get a configuration by ID
-const getConfigurationById = (id: string): ChatSystemConfig | undefined => {
-  return savedConfigurations.find((config) => config.id === id);
+const getConfigurationById = async (
+  id: string,
+): Promise<ChatSystemConfig | undefined> => {
+  return await configApi.getConfigurationById(id);
 };
 
 // Create a new configuration
-const createConfiguration = (
+const createConfiguration = async (
   config: Partial<ChatSystemConfig>,
-): ChatSystemConfig => {
-  const newConfig: ChatSystemConfig = {
-    ...defaultConfig,
-    ...config,
-    id: `config-${Date.now()}`,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    isActive: false,
-  };
-
-  savedConfigurations.push(newConfig);
-  return newConfig;
+): Promise<ChatSystemConfig> => {
+  return await configApi.createConfiguration(config);
 };
 
 // Delete a configuration
-const deleteConfiguration = (id: string): boolean => {
-  const index = savedConfigurations.findIndex((config) => config.id === id);
-  if (index === -1) return false;
-
-  // Don't allow deleting the default configuration
-  if (id === "default") return false;
-
-  // If deleting the active configuration, activate the default
-  if (savedConfigurations[index].isActive) {
-    const defaultConfig = savedConfigurations.find(
-      (config) => config.id === "default",
-    );
-    if (defaultConfig) defaultConfig.isActive = true;
+const deleteConfiguration = async (id: string): Promise<boolean> => {
+  const result = await configApi.deleteConfiguration(id);
+  if (result) {
+    // Clear cache if we deleted the active config
+    const deletedConfig = await configApi.getConfigurationById(id);
+    if (deletedConfig?.isActive) {
+      activeConfigCache = null;
+    }
   }
-
-  savedConfigurations.splice(index, 1);
-  return true;
+  return result;
 };
 
 // Set a configuration as active
-const setActiveConfiguration = (id: string): boolean => {
-  const configToActivate = savedConfigurations.find(
-    (config) => config.id === id,
-  );
-  if (!configToActivate) return false;
-
-  // Deactivate all configurations
-  savedConfigurations.forEach((config) => {
-    config.isActive = config.id === id;
-  });
-
-  return true;
+const setActiveConfiguration = async (id: string): Promise<boolean> => {
+  const result = await configApi.setActiveConfiguration(id);
+  if (result) {
+    // Update cache with the new active config
+    activeConfigCache = (await configApi.getConfigurationById(id)) || null;
+  }
+  return result;
 };
 
 // Update the configuration
-const updateConfig = (
+const updateConfig = async (
   newConfig: Partial<ChatSystemConfig>,
-): ChatSystemConfig => {
-  // In a real implementation, this would update a database or API
-  Object.assign(defaultConfig, newConfig);
-  return { ...defaultConfig };
+): Promise<ChatSystemConfig> => {
+  if (!activeConfigCache?.id) {
+    activeConfigCache = await getConfig();
+  }
+  const updatedConfig = await configApi.updateConfiguration(
+    activeConfigCache.id || "default",
+    newConfig,
+  );
+  activeConfigCache = updatedConfig;
+  return updatedConfig;
 };
 
 // Get widget appearance settings
-const getWidgetAppearance = (): WidgetAppearance => {
-  return { ...defaultConfig.widgetAppearance };
+const getWidgetAppearance = async (): Promise<WidgetAppearance> => {
+  const config = await getConfig();
+  return { ...config.widgetAppearance };
 };
 
 // Update widget appearance settings
-const updateWidgetAppearance = (
+const updateWidgetAppearance = async (
   newAppearance: Partial<WidgetAppearance>,
-): WidgetAppearance => {
-  Object.assign(defaultConfig.widgetAppearance, newAppearance);
-  return { ...defaultConfig.widgetAppearance };
+): Promise<WidgetAppearance> => {
+  if (!activeConfigCache?.id) {
+    activeConfigCache = await getConfig();
+  }
+  const updatedConfig = await configApi.updateConfiguration(
+    activeConfigCache.id || "default",
+    {
+      widgetAppearance: {
+        ...activeConfigCache.widgetAppearance,
+        ...newAppearance,
+      },
+    },
+  );
+  activeConfigCache = updatedConfig;
+  return updatedConfig.widgetAppearance;
 };
 
 // Get AI model settings
-const getAIModelConfig = (): AIModelConfig => {
-  return { ...defaultConfig.aiModel };
+const getAIModelConfig = async (): Promise<AIModelConfig> => {
+  const config = await getConfig();
+  return { ...config.aiModel };
 };
 
 // Update AI model settings
-const updateAIModelConfig = (
+const updateAIModelConfig = async (
   newConfig: Partial<AIModelConfig>,
-): AIModelConfig => {
-  Object.assign(defaultConfig.aiModel, newConfig);
-  return { ...defaultConfig.aiModel };
+): Promise<AIModelConfig> => {
+  if (!activeConfigCache?.id) {
+    activeConfigCache = await getConfig();
+  }
+  const updatedConfig = await configApi.updateConfiguration(
+    activeConfigCache.id || "default",
+    {
+      aiModel: { ...activeConfigCache.aiModel, ...newConfig },
+    },
+  );
+  activeConfigCache = updatedConfig;
+  return updatedConfig.aiModel;
 };
 
 // Get knowledge base settings
-const getKnowledgeBaseConfig = (): KnowledgeBaseConfig => {
-  return { ...defaultConfig.knowledgeBase };
+const getKnowledgeBaseConfig = async (): Promise<KnowledgeBaseConfig> => {
+  const config = await getConfig();
+  return { ...config.knowledgeBase };
 };
 
 // Update knowledge base settings
-const updateKnowledgeBaseConfig = (
+const updateKnowledgeBaseConfig = async (
   newConfig: Partial<KnowledgeBaseConfig>,
-): KnowledgeBaseConfig => {
-  Object.assign(defaultConfig.knowledgeBase, newConfig);
-  return { ...defaultConfig.knowledgeBase };
+): Promise<KnowledgeBaseConfig> => {
+  if (!activeConfigCache?.id) {
+    activeConfigCache = await getConfig();
+  }
+  const updatedConfig = await configApi.updateConfiguration(
+    activeConfigCache.id || "default",
+    {
+      knowledgeBase: { ...activeConfigCache.knowledgeBase, ...newConfig },
+    },
+  );
+  activeConfigCache = updatedConfig;
+  return updatedConfig.knowledgeBase;
 };
 
 // Get response formatting settings
-const getResponseFormattingConfig = (): ResponseFormattingConfig => {
-  return { ...defaultConfig.responseFormatting };
-};
+const getResponseFormattingConfig =
+  async (): Promise<ResponseFormattingConfig> => {
+    const config = await getConfig();
+    return { ...config.responseFormatting };
+  };
 
 // Update response formatting settings
-const updateResponseFormattingConfig = (
+const updateResponseFormattingConfig = async (
   newConfig: Partial<ResponseFormattingConfig>,
-): ResponseFormattingConfig => {
-  Object.assign(defaultConfig.responseFormatting, newConfig);
-  return { ...defaultConfig.responseFormatting };
+): Promise<ResponseFormattingConfig> => {
+  if (!activeConfigCache?.id) {
+    activeConfigCache = await getConfig();
+  }
+  const updatedConfig = await configApi.updateConfiguration(
+    activeConfigCache.id || "default",
+    {
+      responseFormatting: {
+        ...activeConfigCache.responseFormatting,
+        ...newConfig,
+      },
+    },
+  );
+  activeConfigCache = updatedConfig;
+  return updatedConfig.responseFormatting;
 };
 
 export const ConfigurationService = {
