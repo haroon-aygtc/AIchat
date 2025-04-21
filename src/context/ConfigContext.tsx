@@ -5,11 +5,15 @@ import ConfigurationService, {
 
 interface ConfigContextType {
   config: ChatSystemConfig;
+  allConfigurations: ChatSystemConfig[];
   updateConfig: (newConfig: Partial<ChatSystemConfig>) => void;
   updateWidgetAppearance: (newAppearance: any) => void;
   updateAIModelConfig: (newConfig: any) => void;
   updateKnowledgeBaseConfig: (newConfig: any) => void;
   updateResponseFormattingConfig: (newConfig: any) => void;
+  createConfiguration: (config: Partial<ChatSystemConfig>) => ChatSystemConfig;
+  deleteConfiguration: (id: string) => boolean;
+  setActiveConfiguration: (id: string) => boolean;
   isLoading: boolean;
 }
 
@@ -21,17 +25,22 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   const [config, setConfig] = useState<ChatSystemConfig>(
     ConfigurationService.getConfig(),
   );
+  const [allConfigurations, setAllConfigurations] = useState<
+    ChatSystemConfig[]
+  >(ConfigurationService.getAllConfigurations());
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // In a real implementation, this would fetch from an API
     setConfig(ConfigurationService.getConfig());
+    setAllConfigurations(ConfigurationService.getAllConfigurations());
     setIsLoading(false);
   }, []);
 
   const updateConfig = (newConfig: Partial<ChatSystemConfig>) => {
     const updatedConfig = ConfigurationService.updateConfig(newConfig);
     setConfig(updatedConfig);
+    setAllConfigurations(ConfigurationService.getAllConfigurations());
   };
 
   const updateWidgetAppearance = (newAppearance: any) => {
@@ -41,6 +50,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       ...config,
       widgetAppearance: updatedAppearance,
     });
+    setAllConfigurations(ConfigurationService.getAllConfigurations());
   };
 
   const updateAIModelConfig = (newConfig: any) => {
@@ -49,6 +59,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       ...config,
       aiModel: updatedConfig,
     });
+    setAllConfigurations(ConfigurationService.getAllConfigurations());
   };
 
   const updateKnowledgeBaseConfig = (newConfig: any) => {
@@ -58,6 +69,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       ...config,
       knowledgeBase: updatedConfig,
     });
+    setAllConfigurations(ConfigurationService.getAllConfigurations());
   };
 
   const updateResponseFormattingConfig = (newConfig: any) => {
@@ -67,17 +79,46 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       ...config,
       responseFormatting: updatedConfig,
     });
+    setAllConfigurations(ConfigurationService.getAllConfigurations());
+  };
+
+  const createConfiguration = (configData: Partial<ChatSystemConfig>) => {
+    const newConfig = ConfigurationService.createConfiguration(configData);
+    setAllConfigurations(ConfigurationService.getAllConfigurations());
+    return newConfig;
+  };
+
+  const deleteConfiguration = (id: string) => {
+    const result = ConfigurationService.deleteConfiguration(id);
+    if (result) {
+      setAllConfigurations(ConfigurationService.getAllConfigurations());
+      setConfig(ConfigurationService.getConfig());
+    }
+    return result;
+  };
+
+  const setActiveConfiguration = (id: string) => {
+    const result = ConfigurationService.setActiveConfiguration(id);
+    if (result) {
+      setConfig(ConfigurationService.getConfig());
+      setAllConfigurations(ConfigurationService.getAllConfigurations());
+    }
+    return result;
   };
 
   return (
     <ConfigContext.Provider
       value={{
         config,
+        allConfigurations,
         updateConfig,
         updateWidgetAppearance,
         updateAIModelConfig,
         updateKnowledgeBaseConfig,
         updateResponseFormattingConfig,
+        createConfiguration,
+        deleteConfiguration,
+        setActiveConfiguration,
         isLoading,
       }}
     >

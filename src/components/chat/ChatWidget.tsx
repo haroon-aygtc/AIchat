@@ -8,6 +8,12 @@ import {
   Maximize2,
   ChevronDown,
   ChevronUp,
+  Info,
+  AlertCircle,
+  CheckCircle2,
+  HelpCircle,
+  Lightbulb,
+  Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -19,6 +25,13 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import ResponseFormatter from "./ResponseFormatter";
 import FollowUpQuestionGenerator from "./FollowUpQuestionGenerator";
 
@@ -27,6 +40,14 @@ interface Message {
   content: string;
   sender: "user" | "ai";
   timestamp: Date;
+  confidenceScore?: number;
+  reasoningPath?: string[];
+  sources?: {
+    id: string;
+    name: string;
+    relevance: number;
+    snippet?: string;
+  }[];
 }
 
 interface ChatWidgetProps {
@@ -144,11 +165,41 @@ const ChatWidget = ({
     try {
       const response = await onSendMessage(inputValue);
 
+      // In a real implementation, the response would include confidence score and reasoning path
+      // For demo purposes, we'll simulate these
+      const confidenceScore = Math.floor(Math.random() * 29) + 70; // 70-99%
+
+      const reasoningPath = [
+        "Analyzed user query for intent",
+        "Retrieved relevant knowledge base entries",
+        "Applied prompt template based on query type",
+        "Generated initial response draft",
+        "Refined response based on context and formatting rules",
+      ];
+
+      const sources = [
+        {
+          id: "doc-1",
+          name: "Product Documentation",
+          relevance: 0.92,
+          snippet: "Relevant information from the product documentation.",
+        },
+        {
+          id: "kb-3",
+          name: "Knowledge Base Article #3",
+          relevance: 0.85,
+          snippet: "Additional context from the knowledge base.",
+        },
+      ];
+
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         content: response,
         sender: "ai",
         timestamp: new Date(),
+        confidenceScore,
+        reasoningPath,
+        sources,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -327,17 +378,110 @@ const ChatWidget = ({
                                 {message.content}
                               </p>
                             ) : (
-                              <ResponseFormatter
-                                response={message.content}
-                                format="structured"
-                                includeTitle={false}
-                                includeIntro={false}
-                                includeContentBlocks={true}
-                                includeFAQ={false}
-                                includeActions={false}
-                                includeDisclaimer={false}
-                                className="text-sm whitespace-pre-wrap break-words"
-                              />
+                              <>
+                                {message.confidenceScore && (
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                            <div className="w-24 h-1.5 bg-muted-foreground/20 rounded-full overflow-hidden">
+                                              <div
+                                                className={`h-full ${message.confidenceScore >= 90 ? "bg-green-500" : message.confidenceScore >= 75 ? "bg-primary" : "bg-amber-500"}`}
+                                                style={{
+                                                  width: `${message.confidenceScore}%`,
+                                                }}
+                                              />
+                                            </div>
+                                            <span className="text-xs font-medium">
+                                              {message.confidenceScore}%
+                                            </span>
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>AI confidence score</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </div>
+                                )}
+                                <ResponseFormatter
+                                  response={message.content}
+                                  format="structured"
+                                  includeTitle={false}
+                                  includeIntro={false}
+                                  includeContentBlocks={true}
+                                  includeFAQ={false}
+                                  includeActions={false}
+                                  includeDisclaimer={false}
+                                  className="text-sm whitespace-pre-wrap break-words"
+                                />
+
+                                {message.sources &&
+                                  message.sources.length > 0 && (
+                                    <div className="mt-3 pt-2 border-t border-muted-foreground/20">
+                                      <div className="flex items-center gap-1.5 mb-1.5 text-xs text-muted-foreground">
+                                        <Info className="h-3 w-3" />
+                                        <span>Sources:</span>
+                                      </div>
+                                      <div className="space-y-1">
+                                        {message.sources.map((source) => (
+                                          <div
+                                            key={source.id}
+                                            className="flex items-center gap-1.5"
+                                          >
+                                            <Badge
+                                              variant="outline"
+                                              className="text-xs py-0 h-5"
+                                            >
+                                              {source.name}
+                                            </Badge>
+                                            <span className="text-xs text-muted-foreground">
+                                              {Math.round(
+                                                source.relevance * 100,
+                                              )}
+                                              % match
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {message.reasoningPath && (
+                                  <div className="mt-2 pt-2 border-t border-muted-foreground/20">
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
+                                          >
+                                            <Lightbulb className="h-3 w-3 mr-1" />
+                                            View reasoning path
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="w-60">
+                                          <div className="space-y-1">
+                                            <p className="font-medium text-xs">
+                                              AI Reasoning Path:
+                                            </p>
+                                            <ol className="text-xs space-y-1 list-decimal list-inside">
+                                              {message.reasoningPath.map(
+                                                (step, index) => (
+                                                  <li key={index}>{step}</li>
+                                                ),
+                                              )}
+                                            </ol>
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </div>
+                                )}
+                              </>
                             )}
                             <span className="text-xs opacity-70 block text-right mt-1">
                               {formatTime(message.timestamp)}

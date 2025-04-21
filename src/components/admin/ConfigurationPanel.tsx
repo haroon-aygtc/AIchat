@@ -25,6 +25,21 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/components/ui/use-toast";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Save,
   Plus,
   Settings,
@@ -57,6 +72,16 @@ import {
   Download,
   Upload,
   RotateCw,
+  HelpCircle,
+  Info,
+  CheckCircle2,
+  Lightbulb,
+  Layers,
+  Copy as CopyIcon,
+  ArrowRight,
+  Presentation,
+  PanelRight,
+  PanelLeft,
 } from "lucide-react";
 import { useConfig } from "@/context/ConfigContext";
 import PromptTemplateService, {
@@ -65,9 +90,12 @@ import PromptTemplateService, {
 import ChatWidget from "@/components/chat/ChatWidget";
 import ResponseFormatter from "@/components/chat/ResponseFormatter";
 import KnowledgeSourceSelector from "@/components/admin/KnowledgeSourceSelector";
+import FollowUpQuestionBuilder from "@/components/admin/FollowUpQuestionBuilder";
+import ResponseFormattingBuilder from "@/components/admin/ResponseFormattingBuilder";
 import knowledgeSourceService, {
   KnowledgeSource,
 } from "@/services/knowledgeSourceService";
+import aiService, { AIResponse } from "@/services/aiService";
 
 interface ConfigurationPanelProps {
   onSave?: (config: any) => void;
@@ -77,13 +105,25 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
   const { toast } = useToast();
   const {
     config,
+    allConfigurations,
     updateConfig,
     updateWidgetAppearance,
     updateAIModelConfig,
     updateKnowledgeBaseConfig,
     updateResponseFormattingConfig,
+    createConfiguration,
+    deleteConfiguration,
+    setActiveConfiguration,
   } = useConfig();
   const [activeTab, setActiveTab] = useState("prompt-templates");
+  const [showConfigSelector, setShowConfigSelector] = useState(false);
+  const [newConfigName, setNewConfigName] = useState("");
+  const [newConfigDescription, setNewConfigDescription] = useState("");
+  const [showPreviewPanel, setShowPreviewPanel] = useState(false);
+  const [previewPrompt, setPreviewPrompt] = useState("");
+  const [previewResponse, setPreviewResponse] = useState<AIResponse | null>(null);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [showWidgetPreview, setShowWidgetPreview] = useState(false);
   const [apiKeys, setApiKeys] = useState({
@@ -130,6 +170,7 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
       },
       widgetAppearance: config.widgetAppearance,
       responseFormatting: config.responseFormatting,
+      updatedAt: new Date(),
     });
 
     toast({
@@ -140,6 +181,106 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
 
     if (onSave) {
       onSave(config);
+    }
+  };
+  
+  const handleCreateNewConfig = () => {
+    if (!newConfigName.trim()) {
+      toast({
+        title: "Name required",
+        description: "Please provide a name for your configuration.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+    
+    const newConfig = createConfiguration({
+      name: newConfigName,
+      description: newConfigDescription,
+      // Clone current settings
+      widgetAppearance: { ...config.widgetAppearance },
+      knowledgeBase: { ...config.knowledgeBase },
+      aiModel: { ...config.aiModel },
+      responseFormatting: { ...config.responseFormatting },
+    });
+    
+    setNewConfigName("");
+    setNewConfigDescription("");
+    
+    toast({
+      title: "Configuration created",
+      description: `"${newConfig.name}" has been created successfully.`,
+      duration: 3000,
+    });
+  };
+  
+  const handleDeleteConfig = (id: string) => {
+    const result = deleteConfiguration(id);
+    
+    if (result) {
+      toast({
+        title: "Configuration deleted",
+        description: "The configuration has been removed.",
+        duration: 3000,
+      });
+    } else {
+      toast({
+        title: "Cannot delete configuration",
+        description: "The default configuration cannot be deleted.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  };
+  
+  const handleActivateConfig = (id: string) => {
+    const result = setActiveConfiguration(id);
+    
+    if (result) {
+      toast({
+        title: "Configuration activated",
+        description: "The selected configuration is now active.",
+        duration: 3000,
+      });
+    }
+  };
+  
+  const handleGeneratePreview = async () => {
+    if (!previewPrompt.trim()) {
+      toast({
+        title: "Prompt required",
+        description: "Please enter a prompt to generate a preview.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+    
+    setIsGeneratingPreview(true);
+    setPreviewResponse(null);
+    
+    try {
+      // Configure AI service with current settings
+      aiService.setConfig(config.aiModel);
+      
+      // Generate response
+      const response = await aiService.generateResponse(previewPrompt, {
+        includeReasoning: true,
+        includeSources: config.knowledgeBase.enableKnowledgeBase,
+      });
+      
+      setPreviewResponse(response);
+    } catch (error) {
+      console.error("Error generating preview:", error);
+      toast({
+        title: "Preview generation failed",
+        description: "There was an error generating the preview.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setIsGeneratingPreview(false);
     }
   };
 
@@ -295,45 +436,321 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
           </p>
         </div>
         <div className="flex gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowOnboarding(true)}
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Show onboarding help</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          <Button
+            variant="outline"
+            onClick={() => setShowPreviewPanel(!showPreviewPanel)}
+          >
+            <Play className="mr-2 h-4 w-4" />
+            {showPreviewPanel ? "Hide Preview" : "Test Configuration"}
+          </Button>
+          
           <Button
             variant="outline"
             onClick={() => setShowWidgetPreview(!showWidgetPreview)}
           >
-            {showWidgetPreview ? "Hide Preview" : "Show Widget Preview"}
+            {showWidgetPreview ? "Hide Widget" : "Show Widget Preview"}
           </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => setShowConfigSelector(!showConfigSelector)}
+          >
+            <Layers className="mr-2 h-4 w-4" />
+            Configurations
+          </Button>
+          
           <Button onClick={handleSaveConfig}>
             <Save className="mr-2 h-4 w-4" />
             Save Configuration
           </Button>
         </div>
       </div>
+      
+      {/* Configuration Selector */}
+      {showConfigSelector && (
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <div className="flex justify-between items-center">
+              <CardTitle>AI Configurations</CardTitle>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Configuration
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New Configuration</DialogTitle>
+                    <DialogDescription>
+                      Create a new AI configuration based on current settings.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="config-name">Configuration Name</Label>
+                      <Input
+                        id="config-name"
+                        placeholder="E.g., Customer Support Bot"
+                        value={newConfigName}
+                        onChange={(e) => setNewConfigName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="config-description">Description</Label>
+                      <Textarea
+                        id="config-description"
+                        placeholder="Describe the purpose of this configuration"
+                        value={newConfigDescription}
+                        onChange={(e) => setNewConfigDescription(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => {
+                      setNewConfigName("");
+                      setNewConfigDescription("");
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreateNewConfig}>
+                      Create Configuration
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <CardDescription>
+              Switch between different AI configurations for various use cases
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {allConfigurations.map((configItem) => (
+                <div
+                  key={configItem.id}
+                  className={`border rounded-lg p-4 ${configItem.isActive ? "border-primary bg-primary/5" : ""}`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-medium flex items-center gap-2">
+                        {configItem.name}
+                        {configItem.isActive && (
+                          <Badge variant="outline" className="bg-primary/20 text-primary border-primary/10">
+                            Active
+                          </Badge>
+                        )}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {configItem.description}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                // Clone configuration logic would go here
+                                const newName = `${configItem.name} (Copy)`;
+                                createConfiguration({
+                                  name: newName,
+                                  description: configItem.description,
+                                  widgetAppearance: { ...configItem.widgetAppearance },
+                                  knowledgeBase: { ...configItem.knowledgeBase },
+                                  aiModel: { ...configItem.aiModel },
+                                  responseFormatting: { ...configItem.responseFormatting },
+                                });
+                                
+                                toast({
+                                  title: "Configuration duplicated",
+                                  description: `"${newName}" has been created.`,
+                                  duration: 3000,
+                                });
+                              }}
+                            >
+                              <CopyIcon className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Duplicate configuration</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      
+                      {!configItem.isActive && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={() => handleDeleteConfig(configItem.id || "")}
+                                disabled={configItem.id === "default"}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Delete configuration</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-4 text-xs text-muted-foreground">
+                    <div>Model:</div>
+                    <div className="font-medium text-foreground">
+                      {configItem.aiModel.modelType === "gemini" ? "Google Gemini" : 
+                       configItem.aiModel.modelType === "huggingface" ? "Hugging Face" : "Custom Model"}
+                    </div>
+                    
+                    <div>Knowledge Base:</div>
+                    <div className="font-medium text-foreground">
+                      {configItem.knowledgeBase.enableKnowledgeBase ? "Enabled" : "Disabled"}
+                    </div>
+                    
+                    <div>Last Updated:</div>
+                    <div className="font-medium text-foreground">
+                      {configItem.updatedAt ? new Date(configItem.updatedAt).toLocaleDateString() : "Never"}
+                    </div>
+                  </div>
+                  
+                  {!configItem.isActive && (
+                    <Button
+                      className="w-full mt-4"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleActivateConfig(configItem.id || "")}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Activate Configuration
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-5 gap-4 mb-6">
-          <TabsTrigger value="knowledge-base" className="flex items-center">
-            <Database className="mr-2 h-4 w-4" />
-            Knowledge Base
-          </TabsTrigger>
-          <TabsTrigger value="prompt-templates" className="flex items-center">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            Prompt Templates
-          </TabsTrigger>
-          <TabsTrigger value="ai-models" className="flex items-center">
-            <Settings className="mr-2 h-4 w-4" />
-            AI Models
-          </TabsTrigger>
-          <TabsTrigger value="widget-appearance" className="flex items-center">
-            <Palette className="mr-2 h-4 w-4" />
-            Widget Appearance
-          </TabsTrigger>
-          <TabsTrigger
-            value="response-formatting"
-            className="flex items-center"
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Response Formatting
-          </TabsTrigger>
-        </TabsList>
+      <div className="flex">
+        <div className={`flex-1 transition-all ${showPreviewPanel ? "pr-4" : ""}`}>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid grid-cols-6 gap-4 mb-6">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger value="knowledge-base" className="flex items-center">
+                      <Database className="mr-2 h-4 w-4" />
+                      Knowledge Base
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Configure which knowledge sources the AI can access</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger value="prompt-templates" className="flex items-center">
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Prompt Templates
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Create and manage templates for AI prompts</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger value="ai-models" className="flex items-center">
+                      <Settings className="mr-2 h-4 w-4" />
+                      AI Models
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Configure AI model settings and parameters</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger
+                      value="follow-up-questions"
+                      className="flex items-center"
+                    >
+                      <Zap className="mr-2 h-4 w-4" />
+                      Follow-Up Questions
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Create automated follow-up questions for conversations</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger value="widget-appearance" className="flex items-center">
+                      <Palette className="mr-2 h-4 w-4" />
+                      Widget Appearance
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Customize how the chat widget looks and behaves</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger
+                      value="response-formatting"
+                      className="flex items-center"
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Response Formatting
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Configure how AI responses are structured and formatted</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </TabsList>
 
         {/* Knowledge Base Tab */}
         <TabsContent value="knowledge-base" className="space-y-4">
@@ -1598,6 +2015,21 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
           </div>
         </TabsContent>
 
+        {/* Follow-Up Questions Tab */}
+        <TabsContent value="follow-up-questions" className="space-y-4">
+          <FollowUpQuestionBuilder
+            onSave={(followUpConfig) => {
+              // In a real implementation, this would update the follow-up question config
+              toast({
+                title: "Follow-up questions updated",
+                description:
+                  "Your changes to the follow-up questions have been applied.",
+                duration: 3000,
+              });
+            }}
+          />
+        </TabsContent>
+
         {/* Response Formatting Tab */}
         <TabsContent value="response-formatting" className="space-y-4">
           <ResponseFormattingBuilder
@@ -1616,21 +2048,78 @@ const ConfigurationPanel = ({ onSave = () => {} }: ConfigurationPanelProps) => {
             }}
           />
         </TabsContent>
-      </Tabs>
-
-      {showWidgetPreview && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <ChatWidget
-            title={config.widgetAppearance.title}
-            subtitle={config.widgetAppearance.subtitle}
-            primaryColor={config.widgetAppearance.primaryColor}
-            secondaryColor={config.widgetAppearance.secondaryColor}
-            fontFamily={config.widgetAppearance.fontFamily}
-            initialMessage={config.widgetAppearance.initialMessage}
-            avatarUrl={config.widgetAppearance.avatarUrl}
-          />
+          </Tabs>
         </div>
-      )}
+        
+        {/* Preview Panel */}
+        {showPreviewPanel && (
+          <div className="w-[400px] border-l pl-4 flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Configuration Preview</h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPreviewPanel(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4 flex-1">
+              <div className="space-y-2">
+                <Label htmlFor="preview-prompt">Test Prompt</Label>
+                <Textarea
+                  id="preview-prompt"
+                  placeholder="Enter a prompt to test the current configuration..."
+                  value={previewPrompt}
+                  onChange={(e) => setPreviewPrompt(e.target.value)}
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+              
+              <Button
+                onClick={handleGeneratePreview}
+                disabled={!previewPrompt.trim() || isGeneratingPreview}
+                className="w-full"
+              >
+                {isGeneratingPreview ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Generate Response
+                  </>
+                )}
+              </Button>
+              
+              <Separator />
+              
+              <div className="flex-1 overflow-auto">
+                <div className="text-sm font-medium mb-2">Preview Result:</div>
+                
+                {isGeneratingPreview ? (
+                  <div className="flex items-center justify-center h-[200px]">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+                      <p className="text-sm text-muted-foreground">Generating preview...</p>
+                    </div>
+                  </div>
+                ) : previewResponse ? (
+                  <div className="space-y-4">
+                    <div className="p-4 border rounded-md bg-muted/20">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-sm font-medium">Confidence Score:</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${previewResponse.confidenceScore >= 90 ? "bg-green-500" : previewResponse.confidenceScore >= 75 ? "bg
     </div>
   );
 };
