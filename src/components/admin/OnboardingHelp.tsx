@@ -331,7 +331,7 @@ const OnboardingHelp = ({ open, onOpenChange }: OnboardingHelpProps) => {
                 <div className="flex items-center gap-1 text-sm">
                   <Check className="h-4 w-4 text-green-500" />
                   <span>
-                    Use variables like {{ user_query }} to insert dynamic
+                    Use variables like {`{{user_query}}`} to insert dynamic
                     content.
                   </span>
                 </div>
